@@ -45,12 +45,11 @@ const stopCapture=(vidElem)=>{
     tracks.forEach(track => track.stop());
     vidElem.srcObject = null;
 }
-const captureScreen=(vidElem)=>{
+const captureScreen=()=>{
     return new Promise((resolve, reject) =>{
-        navigator.mediaDevices.getDisplayMedia({video:true,audio:true})
+        navigator.mediaDevices.getDisplayMedia({video:true})
         .then(currentStream=>{
-            vidElem.srcObject=currentStream;
-            resolve();
+            resolve(currentStream);
         })
         .catch(() =>{
             reject();
@@ -59,18 +58,28 @@ const captureScreen=(vidElem)=>{
     }) 
         
 }
-// const captureWebcam=(vidElem)=> {
-//     return new Promise((resolve,reject) => {
-//         navigator.mediaDevices.getUserMedia({video:{ exact: 720 }, height: { exact: 720 },audio:true})
-//         .then(currentStream=>{
-//             vidElem.srcObject=currentStream;
-//             resolve()
-//         })
-//         .catch(() =>{
-//             reject();
-//         })
-//     });
-// }
+const captureMic=()=> {
+    return new Promise((resolve,reject) => {
+        navigator.mediaDevices.getUserMedia({audio:true})
+        .then(currentStream=>{
+            resolve(currentStream);
+        })
+        .catch(() =>{
+            reject();
+        })
+    });
+}
+const captureWebcam=()=> {
+    return new Promise((resolve,reject) => {
+        navigator.mediaDevices.getUserMedia({video:true,audio:true})
+        .then(currentStream=>{
+            resolve(currentStream);
+        })
+        .catch(() =>{
+            reject();
+        })
+    });
+}
 
 const useStyle = makeStyles(theme=>{
     return {
@@ -153,8 +162,9 @@ const useStyle = makeStyles(theme=>{
 export default function Room(props) {
     const [message,setMessage] = useState("");
     const [desktopIsSharing,setDesktopIsSharing]=useState(false);
-    const [microphoneIsOn,setMicrophoneIsOn]=useState(false);
+    const [micIsOn,setMicIsOn]=useState(true);
     const [chats,setChats] = useState([]);
+    const [desktopStream,setDesktopStream]=useState(null);
 
     const screenVidRef = useRef(null);
     // const webcamVidRef = useRef(null);
@@ -175,28 +185,25 @@ export default function Room(props) {
         
     },[]);
 
-    // useEffect(()=>{
 
-    //     // captureWebcam(webcamVidRef.current)
-    //     // .then(()=>{
-    //     //     stopCapture(webcamVidRef.current)
-    //     // })
 
+    
     const shareDesktop=(enable)=>{
         if(enable){
-            captureScreen(screenVidRef.current)
-            .then(()=>{
-                setDesktopIsSharing(true)
+            captureScreen()
+            .then((stream)=>{
+                screenVidRef.current.srcObject=stream;
+                setDesktopStream(stream);
+                setDesktopIsSharing(true);
             })
             
         }
         else{
             stopCapture(screenVidRef.current);
             setDesktopIsSharing(false);
+            setDesktopStream(null);
         }
     }
-
-
 
     const handleSubmitMessage=(e)=>{
         e.preventDefault();
@@ -213,12 +220,37 @@ export default function Room(props) {
     const handleChange=(e)=>{
         setMessage(e.target.value);
     }
+
+    const toggleMic=(enable)=>{
+        desktopStream.getAudioTracks()[0].enabled = enable;
+        setMicIsOn(enable);
+    }
     
+    const mixScreenAudio=(enable)=>{//will mix audio with shared desktop
+        if(enable){
+            captureScreen()
+            .then((stream)=>{
+                captureMic()
+                .then(micStream=>{
+                    stream.addTrack(micStream.getAudioTracks()[0])
+                    screenVidRef.current.srcObject=stream;
+                    setDesktopStream(stream);
+                    setDesktopIsSharing(true);
+                })
+            })
+        }
+        else{
+            stopCapture(screenVidRef.current);
+            setDesktopIsSharing(false);
+            setDesktopStream(null);
+        }
+    }
+
     return (
         <Paper square className="container">
             <div className="main">
                 {/* <video  muted autoPlay ref={webcamVidRef} className="vid cam"></video> */}
-                <video style={{width:"100%",height:"100%"}} muted autoPlay ref={screenVidRef} className="vid "></video>
+                <video style={{width:"100%",height:"100%"}} autoPlay ref={screenVidRef} className="vid "></video>
             </div>
             <Paper square className={classes.chatbox}>
                 <div className="messages">
@@ -263,11 +295,11 @@ export default function Room(props) {
             <Paper
                 className={classes.nav}
             >
-                <IconButton aria-label="Share Microphone">
-                    { microphoneIsOn ? <MicrophoneIcon /> : <MicrophoneDisableIcon/> }
+                <IconButton onClick={()=>{toggleMic(!micIsOn)}} aria-label="Share Microphone">
+                    { micIsOn ? <MicrophoneIcon /> : <MicrophoneDisableIcon/> }
                 </IconButton>                
                 
-                <IconButton aria-label="Share Desktop" onClick={()=>{desktopIsSharing ? shareDesktop(false) : shareDesktop(true)}}>
+                <IconButton aria-label="Share Desktop" onClick={()=>{mixScreenAudio(!desktopIsSharing)}}>
                     {desktopIsSharing ? <DesktopIcon /> : <DesktopDesableIcon/>}
                 </IconButton>                    
                 
