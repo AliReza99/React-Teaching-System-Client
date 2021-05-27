@@ -1,4 +1,12 @@
 .main{
     width: calc(100vw - 420px);
     height: calc(100vh - 60px);
+    display:flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+.vid{
+    border: 8px solid rgba(0,0,0,1);
+    
 }

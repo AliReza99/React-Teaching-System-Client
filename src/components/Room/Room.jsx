@@ -2,12 +2,8 @@ import React,{useEffect,useState,useRef} from 'react';
 import "./Room.scss";
 import {io} from "socket.io-client";
 import {
-    // BottomNavigation,
-    // BottomNavigationAction,
-    // Box,
     Paper,
-    TextField,
-    Button,
+    InputBase,
     List,
     ListSubheader,
     ListItem,
@@ -20,11 +16,8 @@ import {
     
 } from "@material-ui/core";
 import {
-    // Restore as RestoreIcon,
     CallEndRounded as HangupIcon,
-    // MoreVertRounded as MoreIcon,
     MicRounded as MicrophoneIcon,
-    // VideocamRounded as VideoIcon,
     SendRounded as MessageIcon,
     Brightness2Rounded as MoonIcon,
     WbSunnyRounded as SunIcon,
@@ -37,7 +30,7 @@ import {makeStyles} from "@material-ui/core/styles";
 
 
 const socket = io('http://localhost:5001');
-const randID=Math.floor(Math.random()*1000); //generate random ID
+const randID=Math.floor(Math.random()*1000); //generate random ID for user
 
 
 const stopCapture=(vidElem)=>{
@@ -69,17 +62,17 @@ const captureMic=()=> {
         })
     });
 }
-const captureWebcam=()=> {
-    return new Promise((resolve,reject) => {
-        navigator.mediaDevices.getUserMedia({video:true,audio:true})
-        .then(currentStream=>{
-            resolve(currentStream);
-        })
-        .catch(() =>{
-            reject();
-        })
-    });
-}
+// const captureWebcam=()=> {
+//     return new Promise((resolve,reject) => {
+//         navigator.mediaDevices.getUserMedia({video:true,audio:true})
+//         .then(currentStream=>{
+//             resolve(currentStream);
+//         })
+//         .catch(() =>{
+//             reject();
+//         })
+//     });
+// }
 
 const useStyle = makeStyles(theme=>{
     return {
@@ -113,47 +106,20 @@ const useStyle = makeStyles(theme=>{
             right:"0",
             top:"0",
             
-            "& .inputs":{
+            "& .form":{
                 position:"absolute",
                 bottom:"0",
-                width:"100%"
+                width:"100%",
+                display:"flex",
+                borderTop:"2px solid rgba(0,0,0,.2)"
             },
             "& .input":{
-                width:"100%",
-                borderRadius:"50%",
-                "&:focus":{
-                    border:"none"
-                }
+                flexGrow:"1",
+                padding:`5px ${theme.spacing(1)}px`,
             },
-            "& .button":{
-                width:"100%",
-                padding:"15px 0",
-                background:"#111",
-                color:"#fff"
-            }
             // "& .status":{
             //     color:theme.palette.text.secondary
             // },
-
-            // "& .emptyContainer":{
-            //     display:"flex",
-            //     flexDirection:"column",
-            //     alignItems:"center",
-            //     justifyContent:"center",
-            //     padding:"70px 0",
-            //     color:theme.palette.text.secondary,
-
-            //     "& .imgContainer":{
-            //         marginBottom:"15px",
-            //         width:"60%",
-
-            //         "& img":{
-            //             width:"100%"
-            //         }
-            //     },
-                
-            // }
-
         },
 
     }
@@ -167,7 +133,6 @@ export default function Room(props) {
     const [desktopStream,setDesktopStream]=useState(null);
 
     const screenVidRef = useRef(null);
-    // const webcamVidRef = useRef(null);
 
     const classes=useStyle();
     
@@ -188,22 +153,7 @@ export default function Room(props) {
 
 
     
-    const shareDesktop=(enable)=>{
-        if(enable){
-            captureScreen()
-            .then((stream)=>{
-                screenVidRef.current.srcObject=stream;
-                setDesktopStream(stream);
-                setDesktopIsSharing(true);
-            })
-            
-        }
-        else{
-            stopCapture(screenVidRef.current);
-            setDesktopIsSharing(false);
-            setDesktopStream(null);
-        }
-    }
+
 
     const handleSubmitMessage=(e)=>{
         e.preventDefault();
@@ -237,20 +187,26 @@ export default function Room(props) {
                     setDesktopStream(stream);
                     setDesktopIsSharing(true);
                 })
+                .catch(()=>{
+                    console.error(`Error happens catching micrphone`);
+                })
+            })
+            .catch(()=>{
+                console.error(`Error happens catching desktop`)
             })
         }
         else{
             stopCapture(screenVidRef.current);
             setDesktopIsSharing(false);
             setDesktopStream(null);
+            setMicIsOn(true);
         }
     }
 
     return (
         <Paper square className="container">
             <div className="main">
-                {/* <video  muted autoPlay ref={webcamVidRef} className="vid cam"></video> */}
-                <video style={{width:"100%",height:"100%"}} autoPlay ref={screenVidRef} className="vid "></video>
+                <video style={{width:"95%"}} autoPlay ref={screenVidRef} className="vid"></video>
             </div>
             <Paper square className={classes.chatbox}>
                 <div className="messages">
@@ -280,16 +236,17 @@ export default function Room(props) {
                         }
                     </List>
                 </div>
-                <form className="inputs" onSubmit={handleSubmitMessage}>
-                    {/* <input value={message} onChange={handleChange} type="text" placeholder="Message..." /> */}
-                    <TextField
+                <form className="form" onSubmit={handleSubmitMessage}>
+                    <InputBase
                         className="input"
                         placeholder="Message..."
                         value={message}
                         onChange={handleChange}
                         variant="outlined"
                     />
-                    <Button size="large" type="submit" className="button" endIcon={<MessageIcon/>}>Send</Button>                    
+                    <IconButton type="submit" aria-label="Send Message">
+                        <MessageIcon/>
+                    </IconButton>
                 </form>
             </Paper>
             <Paper
