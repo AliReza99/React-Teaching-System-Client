@@ -1,6 +1,7 @@
 import React,{useEffect,useState,useRef} from 'react';
 import "./Room.scss";
 import {io} from "socket.io-client";
+import {makeStyles} from "@material-ui/core/styles";
 import {
     Paper,
     InputBase,
@@ -25,12 +26,9 @@ import {
     DesktopAccessDisabled as DesktopDesableIcon,
     MicOffRounded as MicrophoneDisableIcon
 } from "@material-ui/icons";
-import {makeStyles} from "@material-ui/core/styles";
+const SOCKET_ENDPOINT="http://localhost:5001";
 
 
-
-const socket = io('http://localhost:5001');
-const randID=Math.floor(Math.random()*1000); //generate random ID for user
 
 
 const stopCapture=(vidElem)=>{
@@ -40,6 +38,14 @@ const stopCapture=(vidElem)=>{
 }
 const captureScreen=()=>{
     return new Promise((resolve, reject) =>{
+        /*
+        {
+            video:{
+                width:1920,
+                height:1080,
+                frameRate: { ideal: 15, max: 20 }}
+        }
+        */
         navigator.mediaDevices.getDisplayMedia({video:true})
         .then(currentStream=>{
             resolve(currentStream);
@@ -62,18 +68,18 @@ const captureMic=()=> {
         })
     });
 }
-// const captureWebcam=()=> {
-//     return new Promise((resolve,reject) => {
-//         navigator.mediaDevices.getUserMedia({video:true,audio:true})
-//         .then(currentStream=>{
-//             resolve(currentStream);
-//         })
-//         .catch(() =>{
-//             reject();
-//         })
-//     });
-// }
-
+const captureWebcam=()=> {
+    return new Promise((resolve,reject) => {
+        navigator.mediaDevices.getUserMedia({video:true,audio:true})
+        .then(currentStream=>{
+            resolve(currentStream);
+        })
+        .catch(() =>{
+            reject();
+        })
+    });
+}
+const randID=Math.floor(Math.random()*1000); //generate random ID for user
 const useStyle = makeStyles(theme=>{
     return {
         nav:{
@@ -111,7 +117,7 @@ const useStyle = makeStyles(theme=>{
                 bottom:"0",
                 width:"100%",
                 display:"flex",
-                borderTop:"2px solid rgba(0,0,0,.2)"
+                borderTop:"1px solid rgba(0,0,0,.2)"
             },
             "& .input":{
                 flexGrow:"1",
@@ -133,21 +139,40 @@ export default function Room(props) {
     const [desktopStream,setDesktopStream]=useState(null);
 
     const screenVidRef = useRef(null);
-
+    const localStreamRef=useRef(null);
+    const remoteStreamRef = useRef(null);
+    const messageFormRef=useRef(null);
+    
+    
     const classes=useStyle();
     
     useEffect(()=>{
+        const socket = io(SOCKET_ENDPOINT);
+
         socket.on('chat',(data)=>{
-            console.log(data)
             setChats(prev=>{
                 return [...prev,data]
             })
         });
         
-        // socket.on('typing',(data)=>{
-        //     feedback.innerHTML = '<p><em>' + data + ' is typing a message...</em></p>';
-        // });
+        messageFormRef.current.onSubmit=(e)=>{
+            e.preventDefault();
+            if(message.trim()===""){//if it was empty message 
+                return;
+            }
+            socket.emit('chat', {
+                message: message.trim(),
+                handle: `user${randID}`
+            });
+            setMessage("");
+        }
+
         
+        return ()=>{
+            socket.disconnect();
+        }
+        
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     },[]);
 
 
@@ -155,17 +180,6 @@ export default function Room(props) {
     
 
 
-    const handleSubmitMessage=(e)=>{
-        e.preventDefault();
-        if(message.trim()===""){//if it was empty message 
-            return;
-        }
-        socket.emit('chat', {
-            message: message.trim(),
-            handle: `user${randID}`
-        });
-        setMessage("");
-    }
     
     const handleChange=(e)=>{
         setMessage(e.target.value);
@@ -188,11 +202,11 @@ export default function Room(props) {
                     setDesktopIsSharing(true);
                 })
                 .catch(()=>{
-                    console.error(`Error happens catching micrphone`);
+                    console.error(`Error happens capturing micrphone`);
                 })
             })
             .catch(()=>{
-                console.error(`Error happens catching desktop`)
+                console.error(`Error happens capturing desktop`)
             })
         }
         else{
@@ -203,10 +217,13 @@ export default function Room(props) {
         }
     }
 
+    
     return (
         <Paper square className="container">
             <div className="main">
-                <video style={{width:"95%"}} autoPlay ref={screenVidRef} className="vid"></video>
+                {/* <video style={{width:"95%"}} autoPlay ref={screenVidRef} className="vid"></video> */}
+                <video style={{width:"45%"}} autoPlay ref={localStreamRef} className="vid"></video>
+                <video style={{width:"45%"}} autoPlay ref={remoteStreamRef} className="vid"></video>
             </div>
             <Paper square className={classes.chatbox}>
                 <div className="messages">
@@ -236,7 +253,7 @@ export default function Room(props) {
                         }
                     </List>
                 </div>
-                <form className="form" onSubmit={handleSubmitMessage}>
+                <form className="form" ref={messageFormRef}>
                     <InputBase
                         className="input"
                         placeholder="Message..."
