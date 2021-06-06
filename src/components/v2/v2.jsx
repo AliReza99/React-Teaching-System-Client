@@ -1,4 +1,4 @@
-import React,{createRef,useEffect,useState} from 'react';
+import React,{useEffect,useState,useRef} from 'react';
 // import 
 import {io} from "socket.io-client";
 import {Paper,InputBase,Button } from "@material-ui/core";
@@ -20,7 +20,10 @@ const useStyles=makeStyles(theme=>{
 
         }
     }
-})
+});
+const handleInput=(e,setter)=>{
+    setter(e.target.value);
+}
 const captureWebcam=()=> {
     return new Promise((resolve,reject) => {
         navigator.mediaDevices.getUserMedia({video:true,audio:true})
@@ -32,47 +35,50 @@ const captureWebcam=()=> {
         })
     });
 }
+const handleICECandidateEvent=(e,pc)=>{
+    if(e.candidate){
+        socket.emit("ice-candidate", {
+            target:pc.target,
+            candidate:e.candidate
+        });
+    }
+    else{
+        console.log('peer connected',pc);
+    }
+}
+
 
 const socket = io(SOCKET_ENDPOINT);
-const connections=[];
 
-const V2 = () => {
-    const localVidRef=createRef(null);
-    const remoteVidRef=createRef(null);
-    const vidsContainer=createRef(null);
-    
+const V2 = () => {    
     const classes = useStyles(); 
     const [username,setUsername] = useState("");
     const [room,setRoom] = useState("room1");
-
-
-    const handleICECandidateEvent=(target,e)=>{//TODO:complete this
-        // console.log(connections[target]);
-        if(e.candidate){
-            socket.emit("ice-candidate", {
-                target:target,
-                candidate:e.candidate
-            });
-        }
-        else{
-            console.log('ice ended');
-        }
-    }
+    const [streams,setStreams]= useState([]);
+    const selfVidRef=useRef(null);
     
     // const handleNegotiationNeededEvent=async(pc)=> {
-    //     console.log('handle negotiation needed fired');
-    //     console.log('prev offer',pc.localDescription);
-    //     const offer=await pc.createOffer();
-    //     // console.log('new offer',offer);
-    //     await pc.setLocalDescription(offer);
-    //     console.log('new offer',pc.localDescription);
-    //     socket.emit('offer',{
-    //         offer:pc.localDescription,
-    //         target:pc.target
-    //     });
-    // }
-    
+        //     console.log('handle negotiation needed fired');
+        //     console.log('prev offer',pc.localDescription);
+        //     const offer=await pc.createOffer();
+        //     // console.log('new offer',offer);
+        //     await pc.setLocalDescription(offer);
+        //     console.log('new offer',pc.localDescription);
+        //     socket.emit('offer',{
+            //         offer:pc.localDescription,
+            //         target:pc.target
+            //     });
+            // }
+            
+    const addStreams=(e)=>{
+        const stream=e.streams[0];
+        setStreams((last)=>{
+            const newVal=last.filter(val=>val.id !==stream.id);
+            return [...newVal,stream];
+        });
+    }
     useEffect(()=>{
+        const connections=[];
         socket.on('connect',()=>{
             console.log('socket connection established');
         })
@@ -82,26 +88,18 @@ const V2 = () => {
             const pc=new RTCPeerConnection();
             pc.target=userID;
             connections[userID]=pc;
-            const localStream= await captureWebcam()
-            localVidRef.current.srcObject=localStream;
+            const localStream= await captureWebcam();
+
+            selfVidRef.current.srcObject=localStream;
             
             localStream.getTracks().forEach((track)=>{
                 pc.addTrack(track,localStream);
             })
-
-/////////////////////////////////////////////////////////
-            pc.onicecandidate=(e)=>{handleICECandidateEvent(pc.target,e);}
-            pc.ontrack=(e)=>{
-                const remoteStream=e.streams[0];
-                // console.log("B stream",remoteStream);
-                remoteVidRef.current.srcObject=remoteStream;
-                
-            }
+            pc.onicecandidate=(e)=>{handleICECandidateEvent(e,pc)};            
+            pc.ontrack=addStreams;
             // pc.onnegotiationneeded = () => handleNegotiationNeededEvent(pc);
             
             
-            //////////////////////////////////////////////////////////
-            // console.log(connections);
             const offer=await pc.createOffer();
             await pc.setLocalDescription(offer);
             socket.emit('offer',{
@@ -116,9 +114,10 @@ const V2 = () => {
             const pc=new RTCPeerConnection();
             connections[target]=pc;
             pc.target=target;
-            // targ=target;
-            const localStream= await captureWebcam()
-            localVidRef.current.srcObject=localStream;
+            const localStream= await captureWebcam();
+
+            selfVidRef.current.srcObject=localStream;
+            
             
             localStream.getTracks().forEach((track)=>{
                 pc.addTrack(track,localStream);
@@ -126,13 +125,9 @@ const V2 = () => {
             
 
             
-            //////////////////////////////////////////////////////////
-            pc.onicecandidate=(e)=>{handleICECandidateEvent(pc.target,e);};
-            pc.ontrack=(e)=>{
-                const remoteStream=e.streams[0];
-                // console.log("A stream",remoteStream);
-                remoteVidRef.current.srcObject=remoteStream;
-            }
+            pc.onicecandidate=(e)=>{handleICECandidateEvent(e,pc);};
+            pc.ontrack=addStreams;
+
             // pc.onnegotiationneeded = () => handleNegotiationNeededEvent(pc);
             //////////////////////////////////////////////////////////
             
@@ -159,7 +154,7 @@ const V2 = () => {
         return()=>{
             socket.close();
         }
-    },[localVidRef,remoteVidRef])
+    },[]);
     
     
     const handleSubmit=(e)=>{
@@ -170,9 +165,7 @@ const V2 = () => {
         })
     }
     
-    const handleInput=(e,setter)=>{
-        setter(e.target.value);
-    }
+
 
     
 
@@ -185,12 +178,14 @@ const V2 = () => {
                 <Button type="submit">Submit</Button>
             </form>
 
-
-            <div ref={vidsContainer}>
-                <video muted style={{width:"45%"}} autoPlay playsInline ref={localVidRef}></video>
-                <video muted style={{width:"45%"}} autoPlay playsInline ref={remoteVidRef}></video>
-
-            </div>
+            {
+                streams.map(stream=>{
+                    return (
+                        <video key={stream.id} ref={vid=>{if(vid) return vid.srcObject=stream}} muted style={{width:"45%"}} autoPlay playsInline></video>                        
+                    )
+                })
+            }
+            <video ref={selfVidRef} muted style={{width:"45%"}} autoPlay playsInline></video>                        
 
         </Paper>
     );
