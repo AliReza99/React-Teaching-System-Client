@@ -1,5 +1,4 @@
 import React,{useEffect,useState,useRef} from 'react';
-// import 
 import {io} from "socket.io-client";
 import {Paper,InputBase,Button } from "@material-ui/core";
 import {makeStyles} from "@material-ui/core/styles";
@@ -35,20 +34,6 @@ const captureWebcam=()=> {
         })
     });
 }
-const handleICECandidateEvent=(e,pc)=>{
-    if(e.candidate){
-        socket.emit("ice-candidate", {
-            target:pc.target,
-            candidate:e.candidate
-        });
-    }
-    else{
-        console.log('peer connected',pc);
-    }
-}
-
-
-const socket = io(SOCKET_ENDPOINT);
 
 const V2 = () => {    
     const classes = useStyles(); 
@@ -56,7 +41,7 @@ const V2 = () => {
     const [room,setRoom] = useState("room1");
     const [streams,setStreams]= useState([]);
     const selfVidRef=useRef(null);
-    
+    const socket=useRef(null);
     // const handleNegotiationNeededEvent=async(pc)=> {
         //     console.log('handle negotiation needed fired');
         //     console.log('prev offer',pc.localDescription);
@@ -70,21 +55,40 @@ const V2 = () => {
             //     });
             // }
             
-    const addStreams=(e)=>{
-        const stream=e.streams[0];
+    const addStreams=(e,target)=>{
+        const newstream={
+            stream:e.streams[0],
+            target:target
+        }
         setStreams((last)=>{
-            const newVal=last.filter(val=>val.id !==stream.id);
-            return [...newVal,stream];
+            const newVal=last.filter(val=>val.stream.id !==newstream.stream.id);
+            console.log('streams:' , newVal);
+            return [...newVal,newstream];
         });
     }
+
+    const handleICECandidateEvent=(e,pc)=>{
+        if(e.candidate){
+            socket.current.emit("ice-candidate", {
+                target:pc.target,
+                candidate:e.candidate
+            });
+        }
+        else{
+            console.log('peer connected');
+        }
+    }
+    
     useEffect(()=>{
+        socket.current=io(SOCKET_ENDPOINT);
+        
         const connections=[];
-        socket.on('connect',()=>{
+        socket.current.on('connect',()=>{
             console.log('socket connection established');
         })
-        socket.on('new-user-joined',async(userID)=>{
+        socket.current.on('new-user-joined',async(userID)=>{
             //start of peer A
-            console.log(`user ${userID} joined room`);
+            // console.log(`user ${userID} joined room`);
             const pc=new RTCPeerConnection();
             pc.target=userID;
             connections[userID]=pc;
@@ -96,20 +100,20 @@ const V2 = () => {
                 pc.addTrack(track,localStream);
             })
             pc.onicecandidate=(e)=>{handleICECandidateEvent(e,pc)};            
-            pc.ontrack=addStreams;
+            pc.ontrack=(e)=>{addStreams(e,userID)};
             // pc.onnegotiationneeded = () => handleNegotiationNeededEvent(pc);
             
             
             const offer=await pc.createOffer();
             await pc.setLocalDescription(offer);
-            socket.emit('offer',{
+            socket.current.emit('offer',{
                 offer:offer,
                 target:userID
             });
             
         })
         
-        socket.on('recieve-offer',async({offer,target})=>{
+        socket.current.on('recieve-offer',async({offer,target})=>{
             //start of peer B
             const pc=new RTCPeerConnection();
             connections[target]=pc;
@@ -126,7 +130,7 @@ const V2 = () => {
 
             
             pc.onicecandidate=(e)=>{handleICECandidateEvent(e,pc);};
-            pc.ontrack=addStreams;
+            pc.ontrack=(e)=>{addStreams(e,target)};
 
             // pc.onnegotiationneeded = () => handleNegotiationNeededEvent(pc);
             //////////////////////////////////////////////////////////
@@ -134,32 +138,39 @@ const V2 = () => {
             await pc.setRemoteDescription(offer);
             const answer = await pc.createAnswer();
             pc.setLocalDescription(answer);
-            socket.emit('answer',{
+            socket.current.emit('answer',{
                 answer:answer,
                 target:target
             })
             
         })
         
-        socket.on('recieve-answer',async({answer,target})=>{
+        socket.current.on('recieve-answer',async({answer,target})=>{
             await connections[target].setRemoteDescription(answer);
         })
         
-        socket.on("ice-candidate", ({incoming,target})=> {
+        socket.current.on("ice-candidate", ({incoming,target})=> {
             const candidate = new RTCIceCandidate(incoming);
             connections[target].addIceCandidate(candidate)
     
         });
         
+        socket.current.on("user-disconnected",userSocketID=>{
+            // console.log(`user disconnected ${userSocketID}`);
+            setStreams(lastVal=>{
+                return lastVal.filter(elem=> elem.target !== userSocketID );
+            })
+        })
+        
         return()=>{
-            socket.close();
+            socket.current.close();
         }
     },[]);
     
     
     const handleSubmit=(e)=>{
         e.preventDefault();
-        socket.emit('join-room',{
+        socket.current.emit('join-room',{
             username:username,
             roomID:room
         })
@@ -175,17 +186,17 @@ const V2 = () => {
             <form onSubmit={handleSubmit}>
                 <InputBase value={username} onChange={(e)=>{handleInput(e,setUsername)}} className={classes.input} placeholder="username..."/><br />
                 <InputBase value={room} onChange={(e)=>{handleInput(e,setRoom)}} className={classes.input} placeholder="room..."/>
-                <Button type="submit">Submit</Button>
+                <Button type="submit">Join</Button>
             </form>
 
+            <video style={{width:"45%"}} ref={selfVidRef} muted autoPlay playsInline></video>                        
             {
-                streams.map(stream=>{
+                streams.map(({stream})=>{
                     return (
-                        <video key={stream.id} ref={vid=>{if(vid) return vid.srcObject=stream}} muted style={{width:"45%"}} autoPlay playsInline></video>                        
+                        <video key={stream.id} ref={elem=>{if(elem) return elem.srcObject=stream}} muted style={{width:"45%"}} autoPlay playsInline></video>                        
                     )
                 })
             }
-            <video ref={selfVidRef} muted style={{width:"45%"}} autoPlay playsInline></video>                        
 
         </Paper>
     );
