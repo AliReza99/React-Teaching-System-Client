@@ -41,121 +41,120 @@ const V2 = () => {
     const [room,setRoom] = useState("room1");
     const [streams,setStreams]= useState([]);
     const selfVidRef=useRef(null);
-    const socket=useRef(null);
-    // const handleNegotiationNeededEvent=async(pc)=> {
-        //     console.log('handle negotiation needed fired');
-        //     console.log('prev offer',pc.localDescription);
-        //     const offer=await pc.createOffer();
-        //     // console.log('new offer',offer);
-        //     await pc.setLocalDescription(offer);
-        //     console.log('new offer',pc.localDescription);
-        //     socket.emit('offer',{
-            //         offer:pc.localDescription,
-            //         target:pc.target
-            //     });
-            // }
-            
-    const addStreams=(e,target)=>{
-        const newstream={
-            stream:e.streams[0],
-            target:target
+    const socketRef=useRef(null);
+
+    const handleNegotiationNeeded=async(pc)=> {
+        console.log('handle negotiation needed fired');
+        const offer=await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        console.log('new offer',pc.localDescription);
+        socketRef.current.emit('offer',{
+                offer:pc.localDescription,
+                target:pc.target
+            });
+    }
+    
+    class VidStream{
+        constructor(stream,target){
+            this.stream=stream;
+            this.target=target;
         }
+    }
+    
+    const addStreams=(e,target)=>{
+        const newStream= new VidStream(e.streams[0],target);
         setStreams((last)=>{
-            const newVal=last.filter(val=>val.stream.id !==newstream.stream.id);
-            console.log('streams:' , newVal);
-            return [...newVal,newstream];
+            const newVal=last.filter(val=>val.stream.id !==newStream.stream.id);
+            return [...newVal,newStream];
         });
     }
 
     const handleICECandidateEvent=(e,pc)=>{
         if(e.candidate){
-            socket.current.emit("ice-candidate", {
+            socketRef.current.emit("ice-candidate", {
                 target:pc.target,
                 candidate:e.candidate
             });
         }
         else{
-            console.log('peer connected');
+            console.log(`peer ${pc.target} connected`);
         }
     }
     
     useEffect(()=>{
-        socket.current=io(SOCKET_ENDPOINT);
-        
+        socketRef.current=io(SOCKET_ENDPOINT);
         const connections=[];
-        socket.current.on('connect',()=>{
+        
+        socketRef.current.on('connect',()=>{
             console.log('socket connection established');
         })
-        socket.current.on('new-user-joined',async(userID)=>{
+        const createPeer=(target)=>{
+            const peer=new RTCPeerConnection({
+                iceServers: [
+                    {
+                        urls: "stun:stun.stunprotocol.org"
+                    },
+                    {
+                        urls: 'turn:numb.viagenie.ca',
+                        credential: 'muazkh',
+                        username: 'webrtc@live.com'
+                    },
+                ]
+            });
+            connections[target]=peer;
+            peer.onicecandidate = (e)=>{handleICECandidateEvent(e,peer)};
+            peer.ontrack = (e)=>{addStreams(e,target)};
+            peer.onnegotiationneeded = () =>{handleNegotiationNeeded(peer)};
+            peer.target=target;
+    
+            return peer;
+        };
+        socketRef.current.on('new-user-joined',async(userID)=>{
             //start of peer A
-            // console.log(`user ${userID} joined room`);
-            const pc=new RTCPeerConnection();
-            pc.target=userID;
-            connections[userID]=pc;
+            const pc=createPeer(userID);
             const localStream= await captureWebcam();
-
             selfVidRef.current.srcObject=localStream;
-            
             localStream.getTracks().forEach((track)=>{
                 pc.addTrack(track,localStream);
             })
-            pc.onicecandidate=(e)=>{handleICECandidateEvent(e,pc)};            
-            pc.ontrack=(e)=>{addStreams(e,userID)};
-            // pc.onnegotiationneeded = () => handleNegotiationNeededEvent(pc);
-            
-            
-            const offer=await pc.createOffer();
-            await pc.setLocalDescription(offer);
-            socket.current.emit('offer',{
-                offer:offer,
-                target:userID
-            });
-            
+            //at this point handleNegotiationNeeded will fire and offer will be send to peer
         })
         
-        socket.current.on('recieve-offer',async({offer,target})=>{
+        socketRef.current.on('offer',async({offer,target})=>{
             //start of peer B
-            const pc=new RTCPeerConnection();
-            connections[target]=pc;
-            pc.target=target;
-            const localStream= await captureWebcam();
+            const sdp= new RTCSessionDescription(offer)
+            const pc=createPeer(target);
+            await pc.setRemoteDescription(sdp);
 
-            selfVidRef.current.srcObject=localStream;
-            
-            
+            const localStream= await captureWebcam();
             localStream.getTracks().forEach((track)=>{
                 pc.addTrack(track,localStream);
             })
             
-
+            selfVidRef.current.srcObject=localStream;
             
-            pc.onicecandidate=(e)=>{handleICECandidateEvent(e,pc);};
-            pc.ontrack=(e)=>{addStreams(e,target)};
-
-            // pc.onnegotiationneeded = () => handleNegotiationNeededEvent(pc);
-            //////////////////////////////////////////////////////////
             
-            await pc.setRemoteDescription(offer);
+            
+           
             const answer = await pc.createAnswer();
-            pc.setLocalDescription(answer);
-            socket.current.emit('answer',{
+            await pc.setLocalDescription(answer);
+            socketRef.current.emit('answer',{
                 answer:answer,
                 target:target
             })
             
         })
         
-        socket.current.on('recieve-answer',async({answer,target})=>{
-            await connections[target].setRemoteDescription(answer);
+        socketRef.current.on('answer',async({answer,target})=>{
+            await connections[target].setRemoteDescription(new RTCSessionDescription(answer));
         })
         
-        socket.current.on("ice-candidate", ({incoming,target})=> {
+        socketRef.current.on("ice-candidate", ({incoming,target})=> {
             const candidate = new RTCIceCandidate(incoming);
-            connections[target].addIceCandidate(candidate)
-    
+            connections[target].addIceCandidate(candidate);
         });
         
-        socket.current.on("user-disconnected",userSocketID=>{
+        socketRef.current.on("user-disconnected",userSocketID=>{
             // console.log(`user disconnected ${userSocketID}`);
             setStreams(lastVal=>{
                 return lastVal.filter(elem=> elem.target !== userSocketID );
@@ -163,14 +162,14 @@ const V2 = () => {
         })
         
         return()=>{
-            socket.current.close();
+            socketRef.current.close();
         }
     },[]);
     
     
     const handleSubmit=(e)=>{
         e.preventDefault();
-        socket.current.emit('join-room',{
+        socketRef.current.emit('join-room',{
             username:username,
             roomID:room
         })
