@@ -35,6 +35,13 @@ const captureWebcam=()=> {
     });
 }
 
+class VidStream{
+    constructor(stream,target){
+        this.stream=stream;
+        this.target=target;
+    }
+}
+
 const V2 = () => {    
     const classes = useStyles(); 
     const [username,setUsername] = useState("");
@@ -49,25 +56,20 @@ const V2 = () => {
         await pc.setLocalDescription(offer);
         console.log('new offer',pc.localDescription);
         socketRef.current.emit('offer',{
-                offer:pc.localDescription,
-                target:pc.target
-            });
+            offer:pc.localDescription,
+            target:pc.target
+        });
     }
     
-    class VidStream{
-        constructor(stream,target){
-            this.stream=stream;
-            this.target=target;
-        }
-    }
+
     
-    const addStreams=(e,target)=>{
+    const addStreams=React.useCallback((e,target)=>{
         const newStream= new VidStream(e.streams[0],target);
         setStreams((last)=>{
             const newVal=last.filter(val=>val.stream.id !==newStream.stream.id);
             return [...newVal,newStream];
         });
-    }
+    },[]);
 
     const handleICECandidateEvent=(e,pc)=>{
         if(e.candidate){
@@ -83,6 +85,9 @@ const V2 = () => {
     
     useEffect(()=>{
         socketRef.current=io(SOCKET_ENDPOINT);
+    },[])
+    
+    useEffect(()=>{ 
         const connections=[];
         
         socketRef.current.on('connect',()=>{
@@ -114,11 +119,25 @@ const V2 = () => {
             const pc=createPeer(userID);
             const localStream= await captureWebcam();
             selfVidRef.current.srcObject=localStream;
+            // const tracks=[];
             localStream.getTracks().forEach((track)=>{
                 pc.addTrack(track,localStream);
-            })
+            });
+                        
             //at this point handleNegotiationNeeded will fire and offer will be send to peer
         })
+        
+        const toggleStreamTrack=(stream,type,enabled)=>{
+            /* 
+            toggle video or audio of stream ; also remote peers tracks will disable  
+            usage: toggleStreamTrack(localStream,'video',true); 
+            */
+            stream.getTracks().forEach((track)=>{
+                if(track.kind===type){
+                    track.enabled=enabled
+                }
+            })
+        }
         
         socketRef.current.on('offer',async({offer,target})=>{
             //start of peer B
@@ -164,7 +183,7 @@ const V2 = () => {
         return()=>{
             socketRef.current.close();
         }
-    },[]);
+    },[addStreams]);
     
     
     const handleSubmit=(e)=>{
