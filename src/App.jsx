@@ -1,10 +1,9 @@
 import React,{useState} from 'react';
 import {BrowserRouter,Route} from "react-router-dom";
 import { createMuiTheme, MuiThemeProvider } from "@material-ui/core";
+import Room from "./components/Room/Room";
 
-// import Room from "./components/Room/Room";
-// import WebRTC from "./components/WebRTC/WebRTC";
-import V2 from "./components/v2/v2";
+// import V2 from "./components/v2/v2";
 import "./App.scss";
 
 
@@ -48,9 +47,8 @@ function App() {
     return (
     <MuiThemeProvider theme={theme}>
         <BrowserRouter>
-            {/* <Route exact path="/" component={()=><Room setDarkTheme={setDarkTheme} darkTheme={darkTheme}/>} /> */}
-            {/* <Route exact path="/webrtc" component={WebRTC} /> */}
-            <Route exact path="/v2" component={V2} />
+            <Route exact path="/" component={()=><Room setDarkTheme={setDarkTheme} darkTheme={darkTheme}/>} />
+            {/* <Route exact path="/v2" component={V2} /> */}
         </BrowserRouter>
     </MuiThemeProvider>
     )

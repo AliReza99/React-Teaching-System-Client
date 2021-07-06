@@ -1,4 +1,4 @@
-import React,{useEffect,useState,useRef} from 'react';
+import React,{useEffect,useState,useRef,useCallback} from 'react';
 import "./Room.scss";
 import {io} from "socket.io-client";
 import {makeStyles} from "@material-ui/core/styles";
@@ -13,7 +13,8 @@ import {
     ListItemText,
     Typography,
     ListItemSecondaryAction,
-    IconButton
+    IconButton,
+    Button
     
 } from "@material-ui/core";
 import {
@@ -31,43 +32,6 @@ const SOCKET_ENDPOINT="http://localhost:5001";
 
 
 
-const stopCapture=(vidElem)=>{
-    let tracks = vidElem.srcObject.getTracks();
-    tracks.forEach(track => track.stop());
-    vidElem.srcObject = null;
-}
-const captureScreen=()=>{
-    return new Promise((resolve, reject) =>{
-        /*
-        {
-            video:{
-                width:1920,
-                height:1080,
-                frameRate: { ideal: 15, max: 20 }}
-        }
-        */
-        navigator.mediaDevices.getDisplayMedia({video:true})
-        .then(currentStream=>{
-            resolve(currentStream);
-        })
-        .catch(() =>{
-            reject();
-        })
-
-    }) 
-        
-}
-const captureMic=()=> {
-    return new Promise((resolve,reject) => {
-        navigator.mediaDevices.getUserMedia({audio:true})
-        .then(currentStream=>{
-            resolve(currentStream);
-        })
-        .catch(() =>{
-            reject();
-        })
-    });
-}
 const captureWebcam=()=> {
     return new Promise((resolve,reject) => {
         navigator.mediaDevices.getUserMedia({video:true,audio:true})
@@ -79,6 +43,64 @@ const captureWebcam=()=> {
         })
     });
 }
+
+class VidStream{
+    constructor(stream,target){
+        this.stream=stream;
+        this.target=target;
+    }
+}
+
+const toggleStreamTrack=(stream,type,enabled)=>{
+    /* 
+    toggle video or audio of stream ; also remote peers tracks will disable  
+    usage: toggleStreamTrack(localStream,'video',true); 
+    */
+    stream.getTracks().forEach((track)=>{
+        if(track.kind===type){
+            track.enabled=enabled
+        }
+    })
+}
+
+// const stopCapture=(vidElem)=>{
+//     let tracks = vidElem.srcObject.getTracks();
+//     tracks.forEach(track => track.stop());
+//     vidElem.srcObject = null;
+// }
+// const captureScreen=()=>{
+//     return new Promise((resolve, reject) =>{
+//         /*
+//         {
+//             video:{
+//                 width:1920,
+//                 height:1080,
+//                 frameRate: { ideal: 15, max: 20 }}
+//         }
+//         */
+//         navigator.mediaDevices.getDisplayMedia({video:true})
+//         .then(currentStream=>{
+//             resolve(currentStream);
+//         })
+//         .catch(() =>{
+//             reject();
+//         })
+
+//     }) 
+        
+// }
+// const captureMic=()=> {
+//     return new Promise((resolve,reject) => {
+//         navigator.mediaDevices.getUserMedia({audio:true})
+//         .then(currentStream=>{
+//             resolve(currentStream);
+//         })
+//         .catch(() =>{
+//             reject();
+//         })
+//     });
+// }
+
 const randID=Math.floor(Math.random()*1000); //generate random ID for user
 const useStyle = makeStyles(theme=>{
     return {
@@ -136,44 +158,12 @@ export default function Room(props) {
     const [desktopIsSharing,setDesktopIsSharing]=useState(false);
     const [micIsOn,setMicIsOn]=useState(true);
     const [chats,setChats] = useState([]);
-    const [desktopStream,setDesktopStream]=useState(null);
-
-    const screenVidRef = useRef(null);
-    const localStreamRef=useRef(null);
-    const remoteStreamRef = useRef(null);
     const messageFormRef=useRef(null);
     
     
     const classes=useStyle();
     
-    useEffect(()=>{
-        const socket = io(SOCKET_ENDPOINT);
 
-        socket.on('chat',(data)=>{
-            setChats(prev=>{
-                return [...prev,data]
-            })
-        });
-        
-        messageFormRef.current.onSubmit=(e)=>{
-            e.preventDefault();
-            if(message.trim()===""){//if it was empty message 
-                return;
-            }
-            socket.emit('chat', {
-                message: message.trim(),
-                handle: `user${randID}`
-            });
-            setMessage("");
-        }
-
-        
-        return ()=>{
-            socket.disconnect();
-        }
-        
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    },[]);
 
 
 
@@ -185,45 +175,220 @@ export default function Room(props) {
         setMessage(e.target.value);
     }
 
-    const toggleMic=(enable)=>{
-        desktopStream.getAudioTracks()[0].enabled = enable;
-        setMicIsOn(enable);
-    }
+    // const toggleMic=(enable)=>{
+    //     desktopStream.getAudioTracks()[0].enabled = enable;
+    //     setMicIsOn(enable);
+    // }
     
-    const mixScreenAudio=(enable)=>{//will mix audio with shared desktop
-        if(enable){
-            captureScreen()
-            .then((stream)=>{
-                captureMic()
-                .then(micStream=>{
-                    stream.addTrack(micStream.getAudioTracks()[0])
-                    screenVidRef.current.srcObject=stream;
-                    setDesktopStream(stream);
-                    setDesktopIsSharing(true);
-                })
-                .catch(()=>{
-                    console.error(`Error happens capturing micrphone`);
-                })
-            })
-            .catch(()=>{
-                console.error(`Error happens capturing desktop`)
-            })
+    // const mixScreenAudio=(enable)=>{//will mix audio with shared desktop
+    //     if(enable){
+    //         captureScreen()
+    //         .then((stream)=>{
+    //             captureMic()
+    //             .then(micStream=>{
+    //                 stream.addTrack(micStream.getAudioTracks()[0])
+    //                 screenVidRef.current.srcObject=stream;
+    //                 setDesktopStream(stream);
+    //                 setDesktopIsSharing(true);
+    //             })
+    //             .catch(()=>{
+    //                 console.error(`Error happens capturing micrphone`);
+    //             })
+    //         })
+    //         .catch(()=>{
+    //             console.error(`Error happens capturing desktop`)
+    //         })
+    //     }
+    //     else{
+    //         stopCapture(screenVidRef.current);
+    //         setDesktopIsSharing(false);
+    //         setDesktopStream(null);
+    //         setMicIsOn(true);
+    //     }
+    // }
+
+    const [username,setUsername] = useState("");
+    const [room,setRoom] = useState("room1");
+    const [streams,setStreams]= useState([]);
+    const selfVidRef=useRef(null);
+    const socketRef=useRef(null);
+    
+    const handleNegotiationNeeded=async(pc)=> {
+        console.log('handle negotiation needed fired');
+        const offer=await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        console.log('new offer',pc.localDescription);
+        socketRef.current.emit('offer',{
+            offer:pc.localDescription,
+            target:pc.target
+        });
+    }
+    const addStreams=useCallback((e,target)=>{
+        const newStream= new VidStream(e.streams[0],target);
+        setStreams((last)=>{
+            const newVal=last.filter(val=>val.stream.id !==newStream.stream.id);
+            return [...newVal,newStream];
+        });
+    },[]);
+    const handleICECandidateEvent=useCallback((e,pc)=>{
+        if(e.candidate){
+            socketRef.current.emit("ice-candidate", {
+                target:pc.target,
+                candidate:e.candidate
+            });
         }
         else{
-            stopCapture(screenVidRef.current);
-            setDesktopIsSharing(false);
-            setDesktopStream(null);
-            setMicIsOn(true);
-        }
-    }
+            console.log(`peer ${pc.target} connected`);
+        }        
+    },[]);
+
+    const createPeer=(target)=>{
+        const peer=new RTCPeerConnection({
+            iceServers: [
+                {
+                    urls: "stun:stun.stunprotocol.org"
+                },
+                {
+                    urls: 'turn:numb.viagenie.ca',
+                    credential: 'muazkh',
+                    username: 'webrtc@live.com'
+                },
+            ]
+        });
+        peer.onicecandidate = (e)=>{handleICECandidateEvent(e,peer)};
+        peer.ontrack = (e)=>{addStreams(e,target)};
+        peer.onnegotiationneeded = () =>{handleNegotiationNeeded(peer)};
+        peer.target=target;
+    
+        return peer;
+    };
+
 
     
+    useEffect(()=>{
+        socketRef.current=io(SOCKET_ENDPOINT);
+        socketRef.current.on('connect',()=>{
+            console.log('socket connection established');
+        })
+        return()=>{
+            socketRef.current.close();
+        }
+    },[]);
+
+    useEffect(()=>{
+        messageFormRef.current.onsubmit=(e)=>{
+            e.preventDefault();
+            if(message.trim()===""){//if it was empty message 
+                return;
+            }
+            setMessage("");
+            socketRef.current.emit('chat', {
+                message: message.trim(),
+                handle: `user${randID}`
+            });
+        };
+    },[message]);
+    
+    
+    useEffect(()=>{ 
+        const connections=[];
+
+        socketRef.current.on('chat',(data)=>{
+            console.log(`message recieved ${data}`);
+            setChats(prev=>{
+                return [...prev,data]
+            })
+        });
+
+        
+        socketRef.current.on('new-user-joined',async(target)=>{
+            //start of peer A
+            connections[target]=createPeer(target);
+            const localStream= await captureWebcam();
+            selfVidRef.current.srcObject=localStream;
+            localStream.getTracks().forEach((track)=>{
+                connections[target].addTrack(track,localStream);
+            });
+                        
+            //at this point handleNegotiationNeeded will fire and offer will be send to peer
+        })
+        
+
+        
+        socketRef.current.on('offer',async({offer,target})=>{
+            //start of peer B
+            const sdp= new RTCSessionDescription(offer)
+            connections[target]=createPeer(target);
+            await connections[target].setRemoteDescription(sdp);
+
+            const localStream= await captureWebcam();
+            localStream.getTracks().forEach((track)=>{
+                connections[target].addTrack(track,localStream);
+            })
+            
+            selfVidRef.current.srcObject=localStream;
+            
+            
+            
+           
+            const answer = await connections[target].createAnswer();
+            await connections[target].setLocalDescription(answer);
+            socketRef.current.emit('answer',{
+                answer:answer,
+                target:target
+            });
+            
+        })
+        
+        socketRef.current.on('answer',async({answer,target})=>{
+            await connections[target].setRemoteDescription(new RTCSessionDescription(answer));
+        })
+        
+        socketRef.current.on("ice-candidate", ({incoming,target})=> {
+            const candidate = new RTCIceCandidate(incoming);
+            connections[target].addIceCandidate(candidate);
+        });
+        
+        socketRef.current.on("user-disconnected",userSocketID=>{
+            setStreams(lastVal=>{
+                return lastVal.filter(elem=> elem.target !== userSocketID );
+            })
+        })
+        
+
+    },[]);
+    
+
+    const handleSubmit=(e)=>{
+        e.preventDefault();
+        socketRef.current.emit('join-room',{
+            username:username,
+            roomID:room
+        })
+    }
+
+    const handleInput=(e,setter)=>{
+        setter(e.target.value);
+    }
     return (
         <Paper square className="container">
             <div className="main">
-                {/* <video style={{width:"95%"}} autoPlay ref={screenVidRef} className="vid"></video> */}
-                <video style={{width:"45%"}} autoPlay ref={localStreamRef} className="vid"></video>
-                <video style={{width:"45%"}} autoPlay ref={remoteStreamRef} className="vid"></video>
+                <Paper >
+                    <form onSubmit={handleSubmit}>
+                        <InputBase value={username} onChange={(e)=>{handleInput(e,setUsername)}} placeholder="username..."/><br />
+                        <InputBase value={room} onChange={(e)=>{handleInput(e,setRoom)}} placeholder="room..."/>
+                        <Button type="submit">Join</Button>
+                    </form>
+                    <video style={{width:"45%"}} ref={selfVidRef} muted autoPlay playsInline></video>                        
+                    {
+                        streams.map(({stream})=>{
+                            return (
+                                <video className="vid" key={stream.id} ref={elem=>{if(elem) return elem.srcObject=stream}} muted style={{width:"45%"}} autoPlay playsInline></video>                        
+                            )
+                        })
+                    }
+                </Paper>
+                
             </div>
             <Paper square className={classes.chatbox}>
                 <div className="messages">
@@ -269,11 +434,17 @@ export default function Room(props) {
             <Paper
                 className={classes.nav}
             >
-                <IconButton onClick={()=>{toggleMic(!micIsOn)}} aria-label="Share Microphone">
+                <IconButton 
+                    // onClick={()=>{toggleMic(!micIsOn)}} 
+                    aria-label="Share Microphone"
+                >
                     { micIsOn ? <MicrophoneIcon /> : <MicrophoneDisableIcon/> }
                 </IconButton>                
                 
-                <IconButton aria-label="Share Desktop" onClick={()=>{mixScreenAudio(!desktopIsSharing)}}>
+                <IconButton 
+                    // onClick={()=>{mixScreenAudio(!desktopIsSharing)}}
+                    aria-label="Share Desktop" 
+                >
                     {desktopIsSharing ? <DesktopIcon /> : <DesktopDesableIcon/>}
                 </IconButton>                    
                 
