@@ -1,12 +1,38 @@
-.main{
+.formContainer {
+    // background-color: #000;
+    position: absolute;
+    background-color: #333;
+    z-index: 999;
+    top: 0;
+    left: 0;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+.streamsContainer {
     width: calc(100vw - 420px);
     height: calc(100vh - 60px);
-    display:flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-}
-.vid{
-    border: 8px solid rgba(0,0,0,1);
-    
+    overflow: hidden;
+
+
+    display: grid;
+    grid-template-rows: auto;
+    grid-template-columns: auto;
+    gap: 10px;
+
+
+
+    .item {
+        display: flex;
+        min-height: 100px;
+        min-width: 150px;
+        video {
+            border: 3px solid rgba(0,0,0,.2);
+            border-radius: 4px;
+            width: 100%;
+        }
+    }
+
 }

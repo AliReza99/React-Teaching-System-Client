@@ -2,6 +2,7 @@ import React,{useEffect,useState,useRef,useCallback} from 'react';
 import "./Room.scss";
 import {io} from "socket.io-client";
 import {makeStyles} from "@material-ui/core/styles";
+import style from "./Room.scss";
 import {
     Paper,
     InputBase,
@@ -56,11 +57,13 @@ const toggleStreamTrack=(stream,type,enabled)=>{
     toggle video or audio of stream ; also remote peers tracks will disable  
     usage: toggleStreamTrack(localStream,'video',true); 
     */
-    stream.getTracks().forEach((track)=>{
-        if(track.kind===type){
-            track.enabled=enabled
-        }
-    })
+    if(stream){ //if stream was not null or undefined
+        stream.getTracks().forEach((track)=>{
+            if(track.kind===type){
+                track.enabled=enabled
+            }
+        })
+    }
 }
 
 // const stopCapture=(vidElem)=>{
@@ -273,6 +276,12 @@ export default function Room(props) {
         socketRef.current.on('connect',()=>{
             console.log('socket connection established');
         })
+
+
+
+        
+        
+        
         return()=>{
             socketRef.current.close();
         }
@@ -307,29 +316,36 @@ export default function Room(props) {
         socketRef.current.on('new-user-joined',async(target)=>{
             //start of peer A
             connections[target]=createPeer(target);
-            selfStreamRef.current= await captureWebcam();
-            selfVidRef.current.srcObject=selfStreamRef.current;
+            if(!selfStreamRef.current){
+                console.log('runned');
+                selfStreamRef.current= await captureWebcam();
+                selfVidRef.current.srcObject=selfStreamRef.current;
+            }
             selfStreamRef.current.getTracks().forEach((track)=>{
                 connections[target].addTrack(track,selfStreamRef.current);
             });
-                        
+            
             //at this point handleNegotiationNeeded will fire and offer will be send to peer
         })
         
-
+        
         
         socketRef.current.on('offer',async({offer,target})=>{
             //start of peer B
             const sdp= new RTCSessionDescription(offer)
             connections[target]=createPeer(target);
             await connections[target].setRemoteDescription(sdp);
-
-            selfStreamRef.current= await captureWebcam();
+            
+            
+            if(!selfStreamRef.current){
+                console.log('runned');
+                selfStreamRef.current= await captureWebcam();
+                selfVidRef.current.srcObject=selfStreamRef.current;
+            }
             selfStreamRef.current.getTracks().forEach((track)=>{
                 connections[target].addTrack(track,selfStreamRef.current);
             })
             
-            selfVidRef.current.srcObject=selfStreamRef.current;
             
             
             
@@ -377,21 +393,21 @@ export default function Room(props) {
     return (
         <Paper square className="container">
             <div className="main">
-                <Paper >
-                    <form onSubmit={handleSubmit}>
-                        <InputBase value={username} onChange={(e)=>{handleInput(e,setUsername)}} placeholder="username..."/><br />
-                        <InputBase value={room} onChange={(e)=>{handleInput(e,setRoom)}} placeholder="room..."/>
-                        <Button type="submit">Join</Button>
-                    </form>
-                    <video style={{width:"45%"}} ref={selfVidRef} muted autoPlay playsInline></video>                        
+                <form onSubmit={handleSubmit} className="formContainer">
+                    <InputBase value={username} onChange={(e)=>{handleInput(e,setUsername)}} placeholder="username..."/><br />
+                    <InputBase value={room} onChange={(e)=>{handleInput(e,setRoom)}} placeholder="room..."/>
+                    <Button type="submit">Join</Button>
+                </form>
+                <div className="streamsContainer" style={{gridTemplateColumns:`repeat(${Math.floor(Math.log(streams.length>2 ? streams.length : streams.length+1)/Math.log(2))+1}, minmax(0, 1fr))`}}>
+                    <div className="item"><video className="item" ref={selfVidRef} muted autoPlay playsInline></video> </div>
                     {
                         streams.map(({stream})=>{
                             return (
-                                <video className="vid" key={stream.id} ref={elem=>{if(elem) return elem.srcObject=stream}} muted style={{width:"45%"}} autoPlay playsInline></video>                        
+                                <div className="item" key={stream.id}><video className="vid"  ref={elem=>{if(elem) return elem.srcObject=stream}} muted autoPlay playsInline></video></div>                    
                             )
                         })
-                    }
-                </Paper>
+                    } 
+                </div>
                 
             </div>
             <Paper square className={classes.chatbox}>
