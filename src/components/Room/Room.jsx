@@ -156,10 +156,9 @@ const useStyle = makeStyles(theme=>{
 export default function Room(props) {
     const [message,setMessage] = useState("");
     const [desktopIsSharing,setDesktopIsSharing]=useState(false);
-    const [micIsOn,setMicIsOn]=useState(true);
+    const [micIsSharing,setMicIsSharing]=useState(true);
     const [chats,setChats] = useState([]);
     const messageFormRef=useRef(null);
-    
     
     const classes=useStyle();
     
@@ -212,6 +211,10 @@ export default function Room(props) {
     const [streams,setStreams]= useState([]);
     const selfVidRef=useRef(null);
     const socketRef=useRef(null);
+    const desktopButtonRef=useRef(null);
+    const selfStreamRef = useRef(null);
+
+    
     
     const handleNegotiationNeeded=async(pc)=> {
         console.log('handle negotiation needed fired');
@@ -304,10 +307,10 @@ export default function Room(props) {
         socketRef.current.on('new-user-joined',async(target)=>{
             //start of peer A
             connections[target]=createPeer(target);
-            const localStream= await captureWebcam();
-            selfVidRef.current.srcObject=localStream;
-            localStream.getTracks().forEach((track)=>{
-                connections[target].addTrack(track,localStream);
+            selfStreamRef.current= await captureWebcam();
+            selfVidRef.current.srcObject=selfStreamRef.current;
+            selfStreamRef.current.getTracks().forEach((track)=>{
+                connections[target].addTrack(track,selfStreamRef.current);
             });
                         
             //at this point handleNegotiationNeeded will fire and offer will be send to peer
@@ -321,12 +324,12 @@ export default function Room(props) {
             connections[target]=createPeer(target);
             await connections[target].setRemoteDescription(sdp);
 
-            const localStream= await captureWebcam();
-            localStream.getTracks().forEach((track)=>{
-                connections[target].addTrack(track,localStream);
+            selfStreamRef.current= await captureWebcam();
+            selfStreamRef.current.getTracks().forEach((track)=>{
+                connections[target].addTrack(track,selfStreamRef.current);
             })
             
-            selfVidRef.current.srcObject=localStream;
+            selfVidRef.current.srcObject=selfStreamRef.current;
             
             
             
@@ -355,6 +358,7 @@ export default function Room(props) {
             })
         })
         
+
 
     },[]);
     
@@ -435,15 +439,16 @@ export default function Room(props) {
                 className={classes.nav}
             >
                 <IconButton 
-                    // onClick={()=>{toggleMic(!micIsOn)}} 
+                    onClick={()=>{toggleStreamTrack(selfStreamRef.current,'audio',micIsSharing);setMicIsSharing(!micIsSharing)}}
                     aria-label="Share Microphone"
                 >
-                    { micIsOn ? <MicrophoneIcon /> : <MicrophoneDisableIcon/> }
+                    { micIsSharing ? <MicrophoneIcon /> : <MicrophoneDisableIcon/> }
                 </IconButton>                
                 
                 <IconButton 
-                    // onClick={()=>{mixScreenAudio(!desktopIsSharing)}}
+                    onClick={()=>{toggleStreamTrack(selfStreamRef.current,'video',desktopIsSharing);setDesktopIsSharing(!desktopIsSharing)}}
                     aria-label="Share Desktop" 
+                    ref={desktopButtonRef}
                 >
                     {desktopIsSharing ? <DesktopIcon /> : <DesktopDesableIcon/>}
                 </IconButton>                    
