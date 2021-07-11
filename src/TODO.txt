@@ -1,2 +1,2 @@
-//TODO: change users name to their name 
-//TODO: fix bug when third peer disable share first peer still recieves it 
+TODO: change users name to their name 
+TODO: add black board 

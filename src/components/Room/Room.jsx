@@ -2,7 +2,7 @@ import React,{useEffect,useState,useRef,useCallback} from 'react';
 import "./Room.scss";
 import {io} from "socket.io-client";
 import {makeStyles} from "@material-ui/core/styles";
-import style from "./Room.scss";
+import "./Room.scss";
 import {
     Paper,
     InputBase,
@@ -22,8 +22,6 @@ import {
     CallEndRounded as HangupIcon,
     MicRounded as MicrophoneIcon,
     SendRounded as MessageIcon,
-    Brightness2Rounded as MoonIcon,
-    WbSunnyRounded as SunIcon,
     DesktopMacRounded as DesktopIcon,
     DesktopAccessDisabled as DesktopDesableIcon,
     MicOffRounded as MicrophoneDisableIcon
@@ -216,6 +214,7 @@ export default function Room(props) {
     const socketRef=useRef(null);
     const desktopButtonRef=useRef(null);
     const selfStreamRef = useRef(null);
+    const streamSetted = useRef(null);
 
     
     
@@ -276,11 +275,6 @@ export default function Room(props) {
         socketRef.current.on('connect',()=>{
             console.log('socket connection established');
         })
-
-
-
-        
-        
         
         return()=>{
             socketRef.current.close();
@@ -317,7 +311,6 @@ export default function Room(props) {
             //start of peer A
             connections[target]=createPeer(target);
             if(!selfStreamRef.current){
-                console.log('runned');
                 selfStreamRef.current= await captureWebcam();
                 selfVidRef.current.srcObject=selfStreamRef.current;
             }
@@ -336,11 +329,14 @@ export default function Room(props) {
             connections[target]=createPeer(target);
             await connections[target].setRemoteDescription(sdp);
             
-            
-            if(!selfStreamRef.current){
-                console.log('runned');
+            if(!streamSetted.current){
+                streamSetted.current=true;
                 selfStreamRef.current= await captureWebcam();
                 selfVidRef.current.srcObject=selfStreamRef.current;
+
+            }
+            for(;!selfStreamRef.current;){ //wait for last selfStreamRef to resolve
+                await new Promise(r => setTimeout(r, 50)); //sleep for 50 ms
             }
             selfStreamRef.current.getTracks().forEach((track)=>{
                 connections[target].addTrack(track,selfStreamRef.current);
@@ -399,11 +395,11 @@ export default function Room(props) {
                     <Button type="submit">Join</Button>
                 </form>
                 <div className="streamsContainer" style={{gridTemplateColumns:`repeat(${Math.floor(Math.log(streams.length>2 ? streams.length : streams.length+1)/Math.log(2))+1}, minmax(0, 1fr))`}}>
-                    <div className="item"><video className="item" ref={selfVidRef} muted autoPlay playsInline></video> </div>
+                    <div className="vidContainer self"><video className="item" ref={selfVidRef} muted autoPlay playsInline></video> </div>
                     {
                         streams.map(({stream})=>{
                             return (
-                                <div className="item" key={stream.id}><video className="vid"  ref={elem=>{if(elem) return elem.srcObject=stream}} muted autoPlay playsInline></video></div>                    
+                                <div className="vidContainer" key={stream.id}><video className="vid"  ref={elem=>{if(elem) return elem.srcObject=stream}} muted autoPlay playsInline></video></div>                    
                             )
                         })
                     } 
@@ -469,9 +465,9 @@ export default function Room(props) {
                     {desktopIsSharing ? <DesktopIcon /> : <DesktopDesableIcon/>}
                 </IconButton>                    
                 
-                <IconButton onClick={()=>{props.setDarkTheme(!props.darkTheme)}} aria-label="theme">
+                {/* <IconButton onClick={()=>{props.setDarkTheme(!props.darkTheme)}} aria-label="theme">
                     { props.darkTheme ? <SunIcon/> : <MoonIcon /> } 
-                </IconButton>               
+                </IconButton>                */}
 
                 <IconButton aria-label="hangup" className="bgRed">
                     <HangupIcon />
