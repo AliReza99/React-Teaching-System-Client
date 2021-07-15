@@ -129,6 +129,7 @@ const useStyle = makeStyles(theme=>{
             },
         },
         chatbox:{
+            display:"none",
             position:"fixed",
             width:"420px",
             height:"calc(100vh - 65px)",
@@ -160,6 +161,7 @@ export default function Room(props) {
     const [micIsSharing,setMicIsSharing]=useState(true);
     const [chats,setChats] = useState([]);
     const messageFormRef=useRef(null);
+    const hangupBtnRef=useRef(null);
     
     const classes=useStyle();
     
@@ -210,19 +212,19 @@ export default function Room(props) {
     const [username,setUsername] = useState("");
     const [room,setRoom] = useState("room1");
     const [streams,setStreams]= useState([]);
-    const selfVidRef=useRef(null);
     const socketRef=useRef(null);
     const desktopButtonRef=useRef(null);
-    const selfStreamRef = useRef(null);
-    const streamSetted = useRef(null);
-
+    const shareBtnRef=useRef(null);
+    const infoBtnRef=useRef(null);
+    const [selfStream,setSelfStream] = useState(null);
+    // const streamSetted = useRef(null);
+    const connectionsRef=useRef({});
     
     
     const handleNegotiationNeeded=async(pc)=> {
         console.log('handle negotiation needed fired');
         const offer=await pc.createOffer();
         await pc.setLocalDescription(offer);
-        console.log('new offer',pc.localDescription);
         socketRef.current.emit('offer',{
             offer:pc.localDescription,
             target:pc.target
@@ -293,11 +295,25 @@ export default function Room(props) {
                 handle: `user${randID}`
             });
         };
+
+        shareBtnRef.current.onclick=async()=>{
+            const tempStream = await captureWebcam();
+            setSelfStream(tempStream);
+
+            for(const key in connectionsRef.current){
+                tempStream.getTracks().forEach((track)=>{
+                    connectionsRef.current[key].addTrack(track,tempStream);
+                });
+            }
+
+        }
+        
+        
     },[message]);
     
     
     useEffect(()=>{ 
-        const connections=[];
+        
 
         socketRef.current.on('chat',(data)=>{
             console.log(`message recieved ${data}`);
@@ -307,61 +323,15 @@ export default function Room(props) {
         });
 
         
-        socketRef.current.on('new-user-joined',async(target)=>{
-            //start of peer A
-            connections[target]=createPeer(target);
-            if(!selfStreamRef.current){
-                selfStreamRef.current= await captureWebcam();
-                selfVidRef.current.srcObject=selfStreamRef.current;
-            }
-            selfStreamRef.current.getTracks().forEach((track)=>{
-                connections[target].addTrack(track,selfStreamRef.current);
-            });
-            
-            //at this point handleNegotiationNeeded will fire and offer will be send to peer
-        })
-        
-        
-        
-        socketRef.current.on('offer',async({offer,target})=>{
-            //start of peer B
-            const sdp= new RTCSessionDescription(offer)
-            connections[target]=createPeer(target);
-            await connections[target].setRemoteDescription(sdp);
-            
-            if(!streamSetted.current){
-                streamSetted.current=true;
-                selfStreamRef.current= await captureWebcam();
-                selfVidRef.current.srcObject=selfStreamRef.current;
 
-            }
-            for(;!selfStreamRef.current;){ //wait for last selfStreamRef to resolve
-                await new Promise(r => setTimeout(r, 50)); //sleep for 50 ms
-            }
-            selfStreamRef.current.getTracks().forEach((track)=>{
-                connections[target].addTrack(track,selfStreamRef.current);
-            })
-            
-            
-            
-            
-           
-            const answer = await connections[target].createAnswer();
-            await connections[target].setLocalDescription(answer);
-            socketRef.current.emit('answer',{
-                answer:answer,
-                target:target
-            });
-            
-        })
         
         socketRef.current.on('answer',async({answer,target})=>{
-            await connections[target].setRemoteDescription(new RTCSessionDescription(answer));
+            await connectionsRef.current[target].setRemoteDescription(new RTCSessionDescription(answer));            
         })
         
         socketRef.current.on("ice-candidate", ({incoming,target})=> {
             const candidate = new RTCIceCandidate(incoming);
-            connections[target].addIceCandidate(candidate);
+            connectionsRef.current[target].addIceCandidate(candidate);
         });
         
         socketRef.current.on("user-disconnected",userSocketID=>{
@@ -369,11 +339,45 @@ export default function Room(props) {
                 return lastVal.filter(elem=> elem.target !== userSocketID );
             })
         })
-        
+        socketRef.current.on('offer',async({offer,target})=>{ //start of peer B
+            console.log('offer recieved');
+            const sdp= new RTCSessionDescription(offer);
+            if(!connectionsRef.current[target]){
+                connectionsRef.current[target]=createPeer(target);
+            }
+            await connectionsRef.current[target].setRemoteDescription(sdp);
+            const answer = await connectionsRef.current[target].createAnswer();
+            await connectionsRef.current[target].setLocalDescription(answer);
+            socketRef.current.emit('answer',{
+                answer:answer,
+                target:target
+            });
 
+        })
 
     },[]);
     
+    useEffect(()=>{
+            socketRef.current.on('new-user-joined',async(target)=>{ //start of peer A
+                connectionsRef.current[target]=createPeer(target);
+                if(selfStream){
+                    console.log('last stream');
+                    selfStream.getTracks().forEach((track)=>{
+                        connectionsRef.current[target].addTrack(track,selfStream);
+                    });
+                }
+                else{
+
+                    const offer=await connectionsRef.current[target].createOffer();
+                    await connectionsRef.current[target].setLocalDescription(offer);
+                    socketRef.current.emit('offer',{
+                        offer:connectionsRef.current[target].localDescription,
+                        target:connectionsRef.current[target].target
+                    });
+                }
+        })
+    },[selfStream])
+
 
     const handleSubmit=(e)=>{
         e.preventDefault();
@@ -395,7 +399,7 @@ export default function Room(props) {
                     <Button type="submit">Join</Button>
                 </form>
                 <div className="streamsContainer" style={{gridTemplateColumns:`repeat(${Math.floor(Math.log(streams.length>2 ? streams.length : streams.length+1)/Math.log(2))+1}, minmax(0, 1fr))`}}>
-                    <div className="vidContainer self"><video className="item" ref={selfVidRef} muted autoPlay playsInline></video> </div>
+                    <div className="vidContainer self"><video className="item" ref={elem=>{if(elem) return elem.srcObject = selfStream}} muted autoPlay playsInline></video> </div>
                     {
                         streams.map(({stream})=>{
                             return (
@@ -451,14 +455,14 @@ export default function Room(props) {
                 className={classes.nav}
             >
                 <IconButton 
-                    onClick={()=>{toggleStreamTrack(selfStreamRef.current,'audio',micIsSharing);setMicIsSharing(!micIsSharing)}}
+                    onClick={()=>{toggleStreamTrack(selfStream,'audio',micIsSharing);setMicIsSharing(!micIsSharing)}}
                     aria-label="Share Microphone"
                 >
                     { micIsSharing ? <MicrophoneIcon /> : <MicrophoneDisableIcon/> }
                 </IconButton>                
                 
                 <IconButton 
-                    onClick={()=>{toggleStreamTrack(selfStreamRef.current,'video',desktopIsSharing);setDesktopIsSharing(!desktopIsSharing)}}
+                    onClick={()=>{toggleStreamTrack(selfStream,'video',desktopIsSharing);setDesktopIsSharing(!desktopIsSharing)}}
                     aria-label="Share Desktop" 
                     ref={desktopButtonRef}
                 >
@@ -469,9 +473,12 @@ export default function Room(props) {
                     { props.darkTheme ? <SunIcon/> : <MoonIcon /> } 
                 </IconButton>                */}
 
-                <IconButton aria-label="hangup" className="bgRed">
+                {/* <IconButton ref={hangupBtnRef} aria-label="hangup" className="bgRed" >
                     <HangupIcon />
-                </IconButton>
+                </IconButton> */}
+                <Button ref={shareBtnRef}>
+                    Share
+                </Button>
             </Paper>
 
         </Paper>
