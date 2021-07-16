@@ -69,27 +69,27 @@ const toggleStreamTrack=(stream,type,enabled)=>{
 //     tracks.forEach(track => track.stop());
 //     vidElem.srcObject = null;
 // }
-// const captureScreen=()=>{
-//     return new Promise((resolve, reject) =>{
-//         /*
-//         {
-//             video:{
-//                 width:1920,
-//                 height:1080,
-//                 frameRate: { ideal: 15, max: 20 }}
-//         }
-//         */
-//         navigator.mediaDevices.getDisplayMedia({video:true})
-//         .then(currentStream=>{
-//             resolve(currentStream);
-//         })
-//         .catch(() =>{
-//             reject();
-//         })
+const captureScreen=()=>{
+    return new Promise((resolve, reject) =>{
+        /*
+        {
+            video:{
+                width:1920,
+                height:1080,
+                frameRate: { ideal: 15, max: 20 }}
+        }
+        */
+        navigator.mediaDevices.getDisplayMedia({video:true})
+        .then(currentStream=>{
+            resolve(currentStream);
+        })
+        .catch(() =>{
+            reject();
+        })
 
-//     }) 
+    }) 
         
-// }
+}
 // const captureMic=()=> {
 //     return new Promise((resolve,reject) => {
 //         navigator.mediaDevices.getUserMedia({audio:true})
@@ -161,7 +161,8 @@ export default function Room(props) {
     const [micIsSharing,setMicIsSharing]=useState(true);
     const [chats,setChats] = useState([]);
     const messageFormRef=useRef(null);
-    const hangupBtnRef=useRef(null);
+    const shareDesktopRef=useRef(null);
+    // const hangupBtnRef=useRef(null);
     
     const classes=useStyle();
     
@@ -177,37 +178,6 @@ export default function Room(props) {
         setMessage(e.target.value);
     }
 
-    // const toggleMic=(enable)=>{
-    //     desktopStream.getAudioTracks()[0].enabled = enable;
-    //     setMicIsOn(enable);
-    // }
-    
-    // const mixScreenAudio=(enable)=>{//will mix audio with shared desktop
-    //     if(enable){
-    //         captureScreen()
-    //         .then((stream)=>{
-    //             captureMic()
-    //             .then(micStream=>{
-    //                 stream.addTrack(micStream.getAudioTracks()[0])
-    //                 screenVidRef.current.srcObject=stream;
-    //                 setDesktopStream(stream);
-    //                 setDesktopIsSharing(true);
-    //             })
-    //             .catch(()=>{
-    //                 console.error(`Error happens capturing micrphone`);
-    //             })
-    //         })
-    //         .catch(()=>{
-    //             console.error(`Error happens capturing desktop`)
-    //         })
-    //     }
-    //     else{
-    //         stopCapture(screenVidRef.current);
-    //         setDesktopIsSharing(false);
-    //         setDesktopStream(null);
-    //         setMicIsOn(true);
-    //     }
-    // }
 
     const [username,setUsername] = useState("");
     const [room,setRoom] = useState("room1");
@@ -215,7 +185,6 @@ export default function Room(props) {
     const socketRef=useRef(null);
     const desktopButtonRef=useRef(null);
     const shareBtnRef=useRef(null);
-    const infoBtnRef=useRef(null);
     const [selfStream,setSelfStream] = useState(null);
     // const streamSetted = useRef(null);
     const connectionsRef=useRef({});
@@ -307,6 +276,16 @@ export default function Room(props) {
             }
 
         }
+        shareDesktopRef.current.onclick=async ()=>{
+            const tempStream = await captureScreen();
+            setSelfStream(tempStream);
+
+            for(const key in connectionsRef.current){
+                tempStream.getTracks().forEach((track)=>{
+                    connectionsRef.current[key].addTrack(track,tempStream);
+                });
+            }
+        }
         
         
     },[message]);
@@ -376,7 +355,7 @@ export default function Room(props) {
                     });
                 }
         })
-    },[selfStream])
+    },[selfStream]);
 
 
     const handleSubmit=(e)=>{
@@ -398,12 +377,22 @@ export default function Room(props) {
                     <InputBase value={room} onChange={(e)=>{handleInput(e,setRoom)}} placeholder="room..."/>
                     <Button type="submit">Join</Button>
                 </form>
-                <div className="streamsContainer" style={{gridTemplateColumns:`repeat(${Math.floor(Math.log(streams.length>2 ? streams.length : streams.length+1)/Math.log(2))+1}, minmax(0, 1fr))`}}>
-                    <div className="vidContainer self"><video className="item" ref={elem=>{if(elem) return elem.srcObject = selfStream}} muted autoPlay playsInline></video> </div>
+                {/* <div className="streamsContainer" style={{gridTemplateColumns:`repeat(${Math.floor(Math.log(streams.length>2 ? streams.length : streams.length-1)/Math.log(2))+1}, minmax(0, 1fr))`}}> */}
+                <div className="streamsContainer" style={{gridTemplateColumns:`repeat(${Math.floor(Math.log( (selfStream ? 1 : 0)+streams.length ===1 ? 1 : (selfStream ? 1 : 0)+streams.length ) /Math.log(2))+1}, minmax(0, 1fr))`}}>
+                    {
+                        selfStream &&
+                        (<div className="vidContainer self">
+                            <div className="username">You {}</div>
+                            <video className="vid" ref={elem=>{if(elem) return elem.srcObject = selfStream}} muted autoPlay playsInline></video> 
+                        </div>)
+                    }
                     {
                         streams.map(({stream})=>{
                             return (
-                                <div className="vidContainer" key={stream.id}><video className="vid"  ref={elem=>{if(elem) return elem.srcObject=stream}} muted autoPlay playsInline></video></div>                    
+                                <div className="vidContainer" key={stream.id}>
+                                    <div className="username">ID: {stream.id.slice(0,10)}... </div>
+                                    <video className="vid"  ref={elem=>{if(elem) return elem.srcObject=stream}} muted autoPlay playsInline></video>
+                                </div>                    
                             )
                         })
                     } 
@@ -477,10 +466,46 @@ export default function Room(props) {
                     <HangupIcon />
                 </IconButton> */}
                 <Button ref={shareBtnRef}>
-                    Share
+                    Share webcam
+                </Button>
+                <Button ref={shareDesktopRef}>
+                    Share Desktop
                 </Button>
             </Paper>
 
         </Paper>
     )
 }
+
+
+    // const toggleMic=(enable)=>{
+    //     desktopStream.getAudioTracks()[0].enabled = enable;
+    //     setMicIsOn(enable);
+    // }
+    
+    // const mixScreenAudio=(enable)=>{//will mix audio with shared desktop
+    //     if(enable){
+    //         captureScreen()
+    //         .then((stream)=>{
+    //             captureMic()
+    //             .then(micStream=>{
+    //                 stream.addTrack(micStream.getAudioTracks()[0])
+    //                 screenVidRef.current.srcObject=stream;
+    //                 setDesktopStream(stream);
+    //                 setDesktopIsSharing(true);
+    //             })
+    //             .catch(()=>{
+    //                 console.error(`Error happens capturing micrphone`);
+    //             })
+    //         })
+    //         .catch(()=>{
+    //             console.error(`Error happens capturing desktop`)
+    //         })
+    //     }
+    //     else{
+    //         stopCapture(screenVidRef.current);
+    //         setDesktopIsSharing(false);
+    //         setDesktopStream(null);
+    //         setMicIsOn(true);
+    //     }
+    // }
