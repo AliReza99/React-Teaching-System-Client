@@ -15,7 +15,8 @@ import {
     Typography,
     ListItemSecondaryAction,
     IconButton,
-    Button
+    Button,
+    Input
     
 } from "@material-ui/core";
 import {
@@ -129,7 +130,7 @@ const useStyle = makeStyles(theme=>{
             },
         },
         chatbox:{
-            display:"none",
+            // display:"none",
             position:"fixed",
             width:"420px",
             height:"calc(100vh - 65px)",
@@ -159,9 +160,13 @@ export default function Room(props) {
     const [message,setMessage] = useState("");
     const [desktopIsSharing,setDesktopIsSharing]=useState(false);
     const [micIsSharing,setMicIsSharing]=useState(true);
+    const [isCanvasSharing,setIsCanvasSharing]=useState(false);
     const [chats,setChats] = useState([]);
     const messageFormRef=useRef(null);
     const shareDesktopRef=useRef(null);
+    const whiteboardBtnRef=useRef(null);
+    const whiteboardRef=useRef(null);
+    const loadImageRef=useRef(null);
     // const hangupBtnRef=useRef(null);
     
     const classes=useStyle();
@@ -179,6 +184,7 @@ export default function Room(props) {
     }
 
 
+
     const [username,setUsername] = useState("");
     const [room,setRoom] = useState("room1");
     const [streams,setStreams]= useState([]);
@@ -186,12 +192,10 @@ export default function Room(props) {
     const desktopButtonRef=useRef(null);
     const shareBtnRef=useRef(null);
     const [selfStream,setSelfStream] = useState(null);
-    // const streamSetted = useRef(null);
     const connectionsRef=useRef({});
     
     
     const handleNegotiationNeeded=async(pc)=> {
-        console.log('handle negotiation needed fired');
         const offer=await pc.createOffer();
         await pc.setLocalDescription(offer);
         socketRef.current.emit('offer',{
@@ -246,24 +250,6 @@ export default function Room(props) {
         socketRef.current.on('connect',()=>{
             console.log('socket connection established');
         })
-        
-        return()=>{
-            socketRef.current.close();
-        }
-    },[]);
-
-    useEffect(()=>{
-        messageFormRef.current.onsubmit=(e)=>{
-            e.preventDefault();
-            if(message.trim()===""){//if it was empty message 
-                return;
-            }
-            setMessage("");
-            socketRef.current.emit('chat', {
-                message: message.trim(),
-                handle: `user${randID}`
-            });
-        };
 
         shareBtnRef.current.onclick=async()=>{
             const tempStream = await captureWebcam();
@@ -286,6 +272,79 @@ export default function Room(props) {
                 });
             }
         }
+        whiteboardBtnRef.current.onclick=()=>{
+            const canvasStream = whiteboardRef.current.captureStream(30);
+            const canvasTrack = canvasStream.getVideoTracks()[0];
+            for(const key in connectionsRef.current){
+                connectionsRef.current[key].addTrack(canvasTrack,canvasStream);
+            }
+            setSelfStream(canvasStream);
+            setIsCanvasSharing(true);
+        }
+        
+        return()=>{
+            socketRef.current.close();
+        }
+    },[]);
+
+    useEffect(()=>{
+        const myCanvas= whiteboardRef.current;
+        const ctx = myCanvas.getContext("2d");
+
+        let isDrawing = false;
+        let x = 0;
+        let y = 0;
+
+
+        myCanvas.addEventListener('mousedown', e => {
+            x = e.offsetX;
+            y = e.offsetY;
+            isDrawing = true;
+        });
+        
+        function drawLine(ctx, x1, y1, x2, y2) {
+            ctx.beginPath();
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 3;
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+            ctx.closePath();
+        }
+        
+        myCanvas.addEventListener('mousemove', e => {
+            if (isDrawing === true) {
+                drawLine(ctx, x, y, e.offsetX, e.offsetY);
+                x = e.offsetX;
+                y = e.offsetY;
+            }
+        });
+        
+        myCanvas.addEventListener('mouseup', e => {
+            if (isDrawing === true) {
+                drawLine(ctx, x, y, e.offsetX, e.offsetY);
+                x = 0;
+                y = 0;
+                isDrawing = false;
+            }
+        });
+
+    },[])
+    
+    useEffect(()=>{
+        messageFormRef.current.onsubmit=(e)=>{
+            e.preventDefault();
+            if(message.trim()===""){//if it was empty message 
+                return;
+            }
+            setMessage("");
+            socketRef.current.emit('chat', {
+                message: message.trim(),
+                handle: `user${randID}`
+            });
+        };
+
+
         
         
     },[message]);
@@ -295,7 +354,6 @@ export default function Room(props) {
         
 
         socketRef.current.on('chat',(data)=>{
-            console.log(`message recieved ${data}`);
             setChats(prev=>{
                 return [...prev,data]
             })
@@ -319,7 +377,6 @@ export default function Room(props) {
             })
         })
         socketRef.current.on('offer',async({offer,target})=>{ //start of peer B
-            console.log('offer recieved');
             const sdp= new RTCSessionDescription(offer);
             if(!connectionsRef.current[target]){
                 connectionsRef.current[target]=createPeer(target);
@@ -337,23 +394,22 @@ export default function Room(props) {
     },[]);
     
     useEffect(()=>{
-            socketRef.current.on('new-user-joined',async(target)=>{ //start of peer A
-                connectionsRef.current[target]=createPeer(target);
-                if(selfStream){
-                    console.log('last stream');
-                    selfStream.getTracks().forEach((track)=>{
-                        connectionsRef.current[target].addTrack(track,selfStream);
-                    });
-                }
-                else{
+        socketRef.current.on('new-user-joined',async(target)=>{ //start of peer A
+            connectionsRef.current[target]=createPeer(target);
+            if(selfStream){
+                selfStream.getTracks().forEach((track)=>{
+                    connectionsRef.current[target].addTrack(track,selfStream);
+                });
+            }
+            else{
 
-                    const offer=await connectionsRef.current[target].createOffer();
-                    await connectionsRef.current[target].setLocalDescription(offer);
-                    socketRef.current.emit('offer',{
-                        offer:connectionsRef.current[target].localDescription,
-                        target:connectionsRef.current[target].target
-                    });
-                }
+                const offer=await connectionsRef.current[target].createOffer();
+                await connectionsRef.current[target].setLocalDescription(offer);
+                socketRef.current.emit('offer',{
+                    offer:connectionsRef.current[target].localDescription,
+                    target:connectionsRef.current[target].target
+                });
+            }
         })
     },[selfStream]);
 
@@ -369,6 +425,21 @@ export default function Room(props) {
     const handleInput=(e,setter)=>{
         setter(e.target.value);
     }
+    const handleFileChange=()=>{
+        const ctx = whiteboardRef.current.getContext("2d");
+        const file = loadImageRef.current.files[0];
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload=(e)=>{
+            if(e.target.readyState === FileReader.DONE){
+                const img = new Image();
+                img.src = e.target.result;
+                img.onload=()=>{
+                    ctx.drawImage(img,0,0,560,360);
+                }
+            }
+        }
+    }
     return (
         <Paper square className="container">
             <div className="main">
@@ -379,8 +450,19 @@ export default function Room(props) {
                 </form>
                 {/* <div className="streamsContainer" style={{gridTemplateColumns:`repeat(${Math.floor(Math.log(streams.length>2 ? streams.length : streams.length-1)/Math.log(2))+1}, minmax(0, 1fr))`}}> */}
                 <div className="streamsContainer" style={{gridTemplateColumns:`repeat(${Math.floor(Math.log( (selfStream ? 1 : 0)+streams.length ===1 ? 1 : (selfStream ? 1 : 0)+streams.length ) /Math.log(2))+1}, minmax(0, 1fr))`}}>
+                    <div className="vidContainer self whiteboardContainer" style={{display:isCanvasSharing? "flex" : "none"}}>
+                        <canvas width="560" height="360" className="vid" id="whiteboard" ref={whiteboardRef} ></canvas>
+                        <div className="buttonsContainer">
+                            <Button component="label">
+                                Image
+                                <input type="file" onChange={handleFileChange} ref={loadImageRef} hidden/>
+                            </Button>
+                        </div>
+                        {/* <Button onClick={handleFileChange}>Set</Button> */}
+
+                    </div> 
                     {
-                        selfStream &&
+                        selfStream && ! isCanvasSharing &&
                         (<div className="vidContainer self">
                             <div className="username">You {}</div>
                             <video className="vid" ref={elem=>{if(elem) return elem.srcObject = selfStream}} muted autoPlay playsInline></video> 
@@ -470,6 +552,9 @@ export default function Room(props) {
                 </Button>
                 <Button ref={shareDesktopRef}>
                     Share Desktop
+                </Button>
+                <Button ref={whiteboardBtnRef}>
+                    Create Whiteboard
                 </Button>
             </Paper>
 
