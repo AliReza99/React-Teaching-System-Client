@@ -12,9 +12,9 @@
 }
 
 .streamsContainer {
-    // width: calc(100vw - 420px);
+    width: calc(100vw - 420px);
     height: calc(100vh - 60px);
-    width: calc(100vw);
+    // width: calc(100vw);
     overflow: hidden;
 
 
@@ -72,3 +72,7 @@
         background-color: #000;
     }
 }
+// .users{
+//     background-color: #f00;
+
+// }

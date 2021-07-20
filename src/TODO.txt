@@ -1,8 +1,5 @@
-change users name to their name 
 add text write on canvas 
-add room admin in backend
 add support for log room members activity and send back to admin 
-give every message unique id 
 admin can create question in chat and set level of hardness
 add rating for answer messages 
 add support to clear all room message

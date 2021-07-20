@@ -9,18 +9,16 @@ import {
     List,
     ListSubheader,
     ListItem,
-    ListItemAvatar,
-    Avatar,
     ListItemText,
     Typography,
     ListItemSecondaryAction,
     IconButton,
     Button,
-    Input
+    Divider
     
 } from "@material-ui/core";
 import {
-    CallEndRounded as HangupIcon,
+    // CallEndRounded as HangupIcon,
     MicRounded as MicrophoneIcon,
     SendRounded as MessageIcon,
     DesktopMacRounded as DesktopIcon,
@@ -44,12 +42,29 @@ const captureWebcam=()=> {
     });
 }
 
-class VidStream{
-    constructor(stream,target){
-        this.stream=stream;
-        this.target=target;
+class Message{
+    constructor(sender,text,date){
+        this.sender=sender;
+        this.text=text;
+        this.date=new Date(date);
+
     }
 }
+class VidStream{
+    constructor(stream,target,username){
+        this.stream=stream;
+        this.target=target;
+        this.username=username;
+    }
+}
+class User{
+    constructor(username,connectionID){
+        this.username=username;
+        this.connectionID = connectionID;
+    }
+}
+
+
 
 const toggleStreamTrack=(stream,type,enabled)=>{
     /* 
@@ -103,7 +118,6 @@ const captureScreen=()=>{
 //     });
 // }
 
-const randID=Math.floor(Math.random()*1000); //generate random ID for user
 const useStyle = makeStyles(theme=>{
     return {
         nav:{
@@ -129,8 +143,9 @@ const useStyle = makeStyles(theme=>{
                 }
             },
         },
-        chatbox:{
-            // display:"none",
+        sidebar:{
+            display:"flex",
+            flexDirection:"column",
             position:"fixed",
             width:"420px",
             height:"calc(100vh - 65px)",
@@ -138,19 +153,19 @@ const useStyle = makeStyles(theme=>{
             top:"0",
             
             "& .form":{
-                position:"absolute",
-                bottom:"0",
-                width:"100%",
                 display:"flex",
-                borderTop:"1px solid rgba(0,0,0,.2)"
             },
             "& .input":{
                 flexGrow:"1",
                 padding:`5px ${theme.spacing(1)}px`,
             },
-            // "& .status":{
-            //     color:theme.palette.text.secondary
-            // },
+            "& .messages":{
+                overflowY:"scroll",
+                flexGrow:1
+            },
+            "& .listHeader, & .form":{
+                background:"#21242B" //dark background 
+            }
         },
 
     }
@@ -167,8 +182,19 @@ export default function Room(props) {
     const whiteboardBtnRef=useRef(null);
     const whiteboardRef=useRef(null);
     const loadImageRef=useRef(null);
-    // const hangupBtnRef=useRef(null);
+    const [users,setUsers] = useState([]);
+    const [isJoinedRoom,setIsJoinedRoom] = useState(false);
+    const [usernameInput,setUsernameInput] = useState("");
+    const [room,setRoom] = useState("room1");
+    const [streams,setStreams]= useState([]);
+    const socketRef=useRef(null);
+    const desktopButtonRef=useRef(null);
+    const shareBtnRef=useRef(null);
+    const [selfStream,setSelfStream] = useState(null);
+    const connectionsRef=useRef({});
+    const [usernameInRoom,setUsernameInRoom] = useState(null);
     
+
     const classes=useStyle();
     
 
@@ -185,14 +211,6 @@ export default function Room(props) {
 
 
 
-    const [username,setUsername] = useState("");
-    const [room,setRoom] = useState("room1");
-    const [streams,setStreams]= useState([]);
-    const socketRef=useRef(null);
-    const desktopButtonRef=useRef(null);
-    const shareBtnRef=useRef(null);
-    const [selfStream,setSelfStream] = useState(null);
-    const connectionsRef=useRef({});
     
     
     const handleNegotiationNeeded=async(pc)=> {
@@ -203,8 +221,9 @@ export default function Room(props) {
             target:pc.target
         });
     }
-    const addStreams=useCallback((e,target)=>{
-        const newStream= new VidStream(e.streams[0],target);
+    const addStreams=useCallback((e,target,username)=>{
+        console.log('addstreams ',username);
+        const newStream= new VidStream(e.streams[0],target,username);
         setStreams((last)=>{
             const newVal=last.filter(val=>val.stream.id !==newStream.stream.id);
             return [...newVal,newStream];
@@ -222,7 +241,7 @@ export default function Room(props) {
         }        
     },[]);
 
-    const createPeer=(target)=>{
+    const createPeer=(target,username)=>{
         const peer=new RTCPeerConnection({
             iceServers: [
                 {
@@ -236,9 +255,10 @@ export default function Room(props) {
             ]
         });
         peer.onicecandidate = (e)=>{handleICECandidateEvent(e,peer)};
-        peer.ontrack = (e)=>{addStreams(e,target)};
+        peer.ontrack = (e)=>{addStreams(e,target,username)};
         peer.onnegotiationneeded = () =>{handleNegotiationNeeded(peer)};
         peer.target=target;
+        // peer.username=username;
     
         return peer;
     };
@@ -337,11 +357,10 @@ export default function Room(props) {
             if(message.trim()===""){//if it was empty message 
                 return;
             }
-            setMessage("");
             socketRef.current.emit('chat', {
-                message: message.trim(),
-                handle: `user${randID}`
+                text: message.trim(),
             });
+            setMessage("");
         };
 
 
@@ -349,13 +368,16 @@ export default function Room(props) {
         
     },[message]);
     
+
     
     useEffect(()=>{ 
         
 
-        socketRef.current.on('chat',(data)=>{
+        socketRef.current.on('chat',({sender,text,date})=>{
+            const msg=new Message(sender,text,date);
+            console.log(`new message recieved`,msg);
             setChats(prev=>{
-                return [...prev,data]
+                return [...prev,msg]
             })
         });
 
@@ -371,15 +393,18 @@ export default function Room(props) {
             connectionsRef.current[target].addIceCandidate(candidate);
         });
         
-        socketRef.current.on("user-disconnected",userSocketID=>{
-            setStreams(lastVal=>{
-                return lastVal.filter(elem=> elem.target !== userSocketID );
-            })
-        })
-        socketRef.current.on('offer',async({offer,target})=>{ //start of peer B
+
+        socketRef.current.on('offer',async({offer,target,username})=>{ //start of peer B
             const sdp= new RTCSessionDescription(offer);
+            console.log('offer username',username);
             if(!connectionsRef.current[target]){
-                connectionsRef.current[target]=createPeer(target);
+                connectionsRef.current[target]=createPeer(target,username);
+                const newUser = new User(username,target);
+                setUsers((lastVal)=>{
+                    return [...lastVal,newUser]
+                })
+                console.log('new user added');
+                
             }
             await connectionsRef.current[target].setRemoteDescription(sdp);
             const answer = await connectionsRef.current[target].createAnswer();
@@ -388,14 +413,31 @@ export default function Room(props) {
                 answer:answer,
                 target:target
             });
+            
+        })
+
+        socketRef.current.on("user-disconnected",userSocketID=>{
+            setStreams(lastVal=>{
+                return lastVal.filter(stream=> stream.target !== userSocketID );
+            });
+            setUsers((lastVal)=>{
+                return lastVal.filter((user)=> user.connectionID !== userSocketID);
+            });
 
         })
+        
 
     },[]);
     
     useEffect(()=>{
-        socketRef.current.on('new-user-joined',async(target)=>{ //start of peer A
-            connectionsRef.current[target]=createPeer(target);
+        socketRef.current.on('new-user-joined',async({target,username})=>{ //start of peer A
+            console.log('join username',username);
+            connectionsRef.current[target]=createPeer(target,username);
+            const newUser = new User(username,target);
+            setUsers((lastVal)=>{
+                return [...lastVal,newUser]
+            })
+            console.log('new user added');
             if(selfStream){
                 selfStream.getTracks().forEach((track)=>{
                     connectionsRef.current[target].addTrack(track,selfStream);
@@ -417,9 +459,11 @@ export default function Room(props) {
     const handleSubmit=(e)=>{
         e.preventDefault();
         socketRef.current.emit('join-room',{
-            username:username,
+            username:usernameInput,
             roomID:room
-        })
+        });
+        setIsJoinedRoom(true);
+        setUsernameInRoom(usernameInput);
     }
 
     const handleInput=(e,setter)=>{
@@ -444,11 +488,10 @@ export default function Room(props) {
         <Paper square className="container">
             <div className="main">
                 <form onSubmit={handleSubmit} className="formContainer">
-                    <InputBase value={username} onChange={(e)=>{handleInput(e,setUsername)}} placeholder="username..."/><br />
-                    <InputBase value={room} onChange={(e)=>{handleInput(e,setRoom)}} placeholder="room..."/>
+                    <InputBase value={usernameInput} onChange={(e)=>{handleInput(e,setUsernameInput)}} required  placeholder="username..."/><br />
+                    <InputBase value={room} onChange={(e)=>{handleInput(e,setRoom)}} required placeholder="room..."/>
                     <Button type="submit">Join</Button>
                 </form>
-                {/* <div className="streamsContainer" style={{gridTemplateColumns:`repeat(${Math.floor(Math.log(streams.length>2 ? streams.length : streams.length-1)/Math.log(2))+1}, minmax(0, 1fr))`}}> */}
                 <div className="streamsContainer" style={{gridTemplateColumns:`repeat(${Math.floor(Math.log( (selfStream ? 1 : 0)+streams.length ===1 ? 1 : (selfStream ? 1 : 0)+streams.length ) /Math.log(2))+1}, minmax(0, 1fr))`}}>
                     <div className="vidContainer self whiteboardContainer" style={{display:isCanvasSharing? "flex" : "none"}}>
                         <canvas width="560" height="360" className="vid" id="whiteboard" ref={whiteboardRef} ></canvas>
@@ -464,15 +507,16 @@ export default function Room(props) {
                     {
                         selfStream && ! isCanvasSharing &&
                         (<div className="vidContainer self">
-                            <div className="username">You {}</div>
+                            <div className="username">You</div>
                             <video className="vid" ref={elem=>{if(elem) return elem.srcObject = selfStream}} muted autoPlay playsInline></video> 
                         </div>)
                     }
                     {
-                        streams.map(({stream})=>{
+                        streams.map(({stream,username})=>{
+                            
                             return (
                                 <div className="vidContainer" key={stream.id}>
-                                    <div className="username">ID: {stream.id.slice(0,10)}... </div>
+                                    <div className="username">{username} </div>
                                     <video className="vid"  ref={elem=>{if(elem) return elem.srcObject=stream}} muted autoPlay playsInline></video>
                                 </div>                    
                             )
@@ -481,25 +525,44 @@ export default function Room(props) {
                 </div>
                 
             </div>
-            <Paper square className={classes.chatbox}>
+            <Paper square className={classes.sidebar}>
+                <div className="users">
+                    <List 
+                        subheader={<ListSubheader component="div" className="listHeader">Users</ListSubheader>}
+                        style={{maxHeight:"300px",overflowY:"scroll",}}
+                        
+                    >
+                        {
+                            isJoinedRoom && 
+                                <ListItem>
+                                    <ListItemText primary={usernameInRoom}/>
+                                </ListItem>
+                        }
+                        {
+                            users.map((user)=>{
+                                return (
+                                    <ListItem key={user.connectionID}>
+                                        <ListItemText primary={user.username}/>
+                                    </ListItem>
+                                )
+                            })
+                        }                       
+                    </List>
+                </div>    
+                <Divider />            
                 <div className="messages">
                     <List 
-                        subheader={<ListSubheader component="div">CHAT</ListSubheader>}
+                        subheader={<ListSubheader className="listHeader" component="div">CHAT</ListSubheader>}
+                        disablePadding
                     >
                         {
                             chats.map((chat,index)=>{
                                 return (
                                     <ListItem key={index}>
-                                        {
-                                            chat.avatar &&
-                                            (<ListItemAvatar>
-                                                <Avatar alt={`${chat.handle} avatar`} src={chat.avatar} />
-                                            </ListItemAvatar>) 
-                                        }
-                                        <ListItemText primary={chat.handle} secondary={<Typography variant="body2" noWrap color="textSecondary">{chat.message}</Typography>} />
+                                        <ListItemText primary={chat.sender} secondary={<Typography variant="body2" noWrap color="textSecondary">{chat.text}</Typography>} />
                                         <ListItemSecondaryAction>
                                             <div className="status">
-                                                {chat.date}
+                                                {chat.date.getHours() + ":" + chat.date.getMinutes()}
                                             </div>
                                         </ListItemSecondaryAction>
                                     </ListItem>
@@ -509,6 +572,7 @@ export default function Room(props) {
                         }
                     </List>
                 </div>
+                <Divider />
                 <form className="form" ref={messageFormRef}>
                     <InputBase
                         className="input"
@@ -540,13 +604,6 @@ export default function Room(props) {
                     {desktopIsSharing ? <DesktopIcon /> : <DesktopDesableIcon/>}
                 </IconButton>                    
                 
-                {/* <IconButton onClick={()=>{props.setDarkTheme(!props.darkTheme)}} aria-label="theme">
-                    { props.darkTheme ? <SunIcon/> : <MoonIcon /> } 
-                </IconButton>                */}
-
-                {/* <IconButton ref={hangupBtnRef} aria-label="hangup" className="bgRed" >
-                    <HangupIcon />
-                </IconButton> */}
                 <Button ref={shareBtnRef}>
                     Share webcam
                 </Button>
@@ -556,6 +613,13 @@ export default function Room(props) {
                 <Button ref={whiteboardBtnRef}>
                     Create Whiteboard
                 </Button>
+                {/* <IconButton onClick={()=>{props.setDarkTheme(!props.darkTheme)}} aria-label="theme">
+                    { props.darkTheme ? <SunIcon/> : <MoonIcon /> } 
+                </IconButton>                */}
+
+                {/* <IconButton ref={hangupBtnRef} aria-label="hangup" className="bgRed" >
+                    <HangupIcon />
+                </IconButton> */}
             </Paper>
 
         </Paper>
