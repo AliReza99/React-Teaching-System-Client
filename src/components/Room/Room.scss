@@ -72,6 +72,33 @@
         background-color: #000;
     }
 }
+.msgMode{
+    display: flex;
+    align-items: center;
+}
+.question{
+    color:#64B5F6;
+}
+.answer{
+    color: #26C6DA;
+}
+.replyContainer{
+    padding: 10px 7px;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    color: #64B5F6;
+    span{
+        color: #999;
+        display: flex;
+        cursor: pointer;
+    }
+}
+.rating{
+    margin-top:10px;
+}
 // .users{
 //     background-color: #f00;
 

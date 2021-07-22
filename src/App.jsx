@@ -1,6 +1,6 @@
 import React,{useState} from 'react';
 import {BrowserRouter,Route} from "react-router-dom";
-import { createMuiTheme, MuiThemeProvider } from "@material-ui/core";
+import { createTheme, MuiThemeProvider } from "@material-ui/core";
 import Room from "./components/Room/Room";
 
 // import V2 from "./components/v2/v2";
@@ -11,7 +11,7 @@ import "./App.scss";
 
 function App() {
     const [darkTheme,setDarkTheme] = useState(true);
-    const theme = createMuiTheme({
+    const theme = createTheme({
         props: {
             MuiButtonBase: {
                 disableRipple: true

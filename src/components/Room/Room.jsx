@@ -13,16 +13,21 @@ import {
     ListItemSecondaryAction,
     IconButton,
     Button,
-    Divider    
+    Divider,
+    InputAdornment,
 } from "@material-ui/core";
 import {
     MicRounded as MicrophoneIcon,
     SendRounded as MessageIcon,
     DesktopMacRounded as DesktopIcon,
     DesktopAccessDisabled as DesktopDesableIcon,
-    MicOffRounded as MicrophoneDisableIcon
+    MicOffRounded as MicrophoneDisableIcon,
+    CheckRounded as TickIcon,
+    Close as CloseIcon,
+    // StarRate as StarIcon,
     // CallEndRounded as HangupIcon,
 } from "@material-ui/icons";
+import Rating from '@material-ui/lab/Rating';
 
 const SOCKET_ENDPOINT="http://localhost:5001";
 
@@ -83,11 +88,15 @@ const useStyle = makeStyles(theme=>{
 
 
 class Message{
-    constructor(sender,text,date){
+    constructor(id,sender,text,date,role,rate,hardness,repliedID){
+        this.id=id;
         this.sender=sender;
         this.text=text;
         this.date=new Date(date);
-
+        this.role=role;
+        this.rate=rate;
+        this.hardness=hardness;
+        this.repliedID=repliedID;
     }
 }
 class VidStream{
@@ -151,11 +160,76 @@ const captureScreen=()=>{
         
 }
 
+const ChatListItem=({id,role,onClick,text,date,sender,hardness,repliedText,isAdmin,ratingOnChange,rate})=>{
+    let isButton= false;
+    const classes=[];
+    let primaryText;
+    if(role==="question"){
+        isButton= true;
+        classes.push("question");
+        primaryText=`Question (Hardness: ${hardness})`;
+    }
+    else if(role==="answer"){
+        classes.push("answer");
+        primaryText=`${sender} (Replied to: ${repliedText})`;
+    }
+    else{
+        primaryText=sender;
+    }
+    const [value,setValue]=useState(rate);
+    
+    return (
+        <ListItem 
+            button={isButton} 
+            onClick={onClick}
+        >
+            <ListItemText 
+                className={classes.join(" ")}
+                primary={primaryText}
+                secondary={
+                    <>
+                        <Typography component="span" style={{display:"block"}} variant={"body2"} noWrap color="textSecondary" >
+                            {text}
+                        </Typography>
+                        {
+                            role==="answer" && isAdmin &&
+                            <Rating
+                                className="rating"
+                                name={`answer-rating${id}`}
+                                value={value}
+                                onChange={(e,newVal)=>{
+                                    setValue(newVal);
+                                    ratingOnChange(newVal);
+                                }}
+                                size="small"
+                            />
+                        }
+                        {
+                            role==="answer" && !isAdmin &&
+                            <Rating
+                                className="rating"
+                                name={`answer-rating${id}`}
+                                value={rate}
+                                size="small"
+                                readOnly
+                            />
+                        }
+                    </>
+                    
+                }/>
+            <ListItemSecondaryAction>
+                <div className="status">
+                    {date.getHours() + ":" + date.getMinutes()}
+                </div>
+            </ListItemSecondaryAction>
+        </ListItem>
+    )
+}
 
 
 
 export default function Room(props) {
-    const [message,setMessage] = useState("");
+    const [messageInput,setMessageInput] = useState("");
     const [desktopIsSharing,setDesktopIsSharing]=useState(false);
     const [micIsSharing,setMicIsSharing]=useState(true);
     const [isCanvasSharing,setIsCanvasSharing]=useState(false);
@@ -167,14 +241,21 @@ export default function Room(props) {
     const [streams,setStreams]= useState([]);
     const [selfStream,setSelfStream] = useState(null);
     const [selfUsernameInRoom,setSelfUsernameInRoom] = useState(null);
+    const [isAdmin,setIsAdmin]=useState(false);
+    const [isQuestion,setIsQuestion] = useState(false);
+    const [questionHardness,setQuestionHardness] = useState(5);
+    const [selectedQuestionID,setSelectedQuestionID] = useState(null);
 
     const socketRef=useRef(null);
     const connectionsRef=useRef({});
     const whiteboardRef=useRef(null);
     const fileInputRef=useRef(null);
+    const messageInputRef = useRef(null);
+    const messageContainerRef= useRef(null);
     
     const classes=useStyle();
-        
+      
+    
     const handleNegotiationNeeded=async(pc)=> {
         const offer=await pc.createOffer();
         await pc.setLocalDescription(offer);
@@ -197,10 +278,7 @@ export default function Room(props) {
                 target:pc.target,
                 candidate:e.candidate
             });
-        }
-        // else{
-        //     console.log(`peer ${pc.target} connected`);
-        // }        
+        }  
     },[]);
 
     const createPeer=(target,username)=>{
@@ -303,6 +381,10 @@ export default function Room(props) {
         setSelfStream(tempStream);
     }
     
+    const selectQuestion=(questionID)=>{
+        setSelectedQuestionID(questionID);
+        messageInputRef.current.focus();
+    } 
     const handleSubmit=(e)=>{
         e.preventDefault();
         socketRef.current.emit('join-room',{
@@ -334,13 +416,37 @@ export default function Room(props) {
 
     const sendMessages=(e)=>{
         e.preventDefault();
-        if(message.trim()===""){//if it was empty message 
+        if(messageInput.trim()===""){//if it was empty message 
             return;
         }
-        socketRef.current.emit('chat', {
-            text: message.trim(),
-        });
-        setMessage("");
+        const data={
+            text:messageInput.trim(),
+        }
+        if(isAdmin){
+            if(isQuestion){
+                data.hardness=questionHardness;
+            }
+        }
+        else{
+            if(selectedQuestionID){
+                data.repliedID=selectedQuestionID;
+            }
+        }
+        socketRef.current.emit('chat', data);
+        setMessageInput("");
+        setSelectedQuestionID(null);
+    }
+
+    const rateMessage=(rate,messageID)=>{
+        socketRef.current.emit('rate-message',{
+            messageID:messageID,
+            rate:rate
+        })
+    }
+    
+
+    const clearChat = ()=>{
+        socketRef.current.emit('clear-chat');
     }
     
     useEffect(()=>{
@@ -356,7 +462,6 @@ export default function Room(props) {
 
     useEffect(()=>{
         socketRef.current.on('new-user-joined',async({target,username})=>{ //start of peer A
-            console.log('new user joined ',username);
             connectionsRef.current[target]=createPeer(target,username);
             const newUser = new User(username,target);
             setUsers((lastVal)=>{
@@ -380,12 +485,30 @@ export default function Room(props) {
     },[selfStream]);
 
     useEffect(()=>{ 
-        socketRef.current.on('chat',({sender,text,date})=>{
-            const msg=new Message(sender,text,date);
+        socketRef.current.on('chat',({sender,text,date,id,role,rate,hardness,repliedID})=>{
+            const msg=new Message(id,sender,text,date,role,rate,hardness,repliedID);
             setChats(prev=>{
                 return [...prev,msg]
-            })
+            });
+            messageContainerRef.current.scrollTop=10000;//scroll to button after new message
+            
         });
+
+        socketRef.current.on('set-is-admin',()=>{
+            setIsAdmin(true);
+        })
+        
+
+        
+        socketRef.current.on('full-chat-update',(chatsArr)=>{
+            const dateCorrectedArr= chatsArr.map((chat)=>new Message(chat.id,chat.sender,chat.text,chat.date,chat.role,chat.rate,chat.hardness));
+            setChats(()=>{
+                return dateCorrectedArr;
+            });
+            if(dateCorrectedArr.length ===0){
+                setSelectedQuestionID(null);
+            }
+        })
 
         socketRef.current.on('answer',async({answer,target})=>{
             await connectionsRef.current[target].setRemoteDescription(new RTCSessionDescription(answer));            
@@ -393,7 +516,6 @@ export default function Room(props) {
         
         socketRef.current.on('offer',async({offer,target,username})=>{ //start of peer B
             const sdp= new RTCSessionDescription(offer);
-            console.log('offer username',username);
             if(!connectionsRef.current[target]){
                 connectionsRef.current[target]=createPeer(target,username);
                 const newUser = new User(username,target);
@@ -431,6 +553,31 @@ export default function Room(props) {
 
     },[]);
     
+    useEffect(()=>{
+        socketRef.current.on("update-message",(message)=>{
+            // console.log('new message update');
+            setChats((lastChats)=>{
+                const index= lastChats.findIndex((chat)=>chat.id===message.id);
+
+                if(index !== -1){
+                    const newMsg={...lastChats[index]};
+                    newMsg.rate=message.rate;
+                    const newArr = [
+                        ...lastChats.slice(0,index),
+                        newMsg,
+                        ...lastChats.slice(index+1)
+                    ];
+                    console.log(newArr);
+
+                    return newArr;
+
+                }
+                return lastChats;
+
+                
+            })
+        });
+    },[]);
 
 
 
@@ -477,7 +624,7 @@ export default function Room(props) {
             <Paper square className={classes.sidebar}>
                 <div className="users">
                     <List 
-                        subheader={<ListSubheader component="div" className="listHeader">Users</ListSubheader>}
+                        subheader={<ListSubheader component="div" className="listHeader">Users {users.length > 0 ? `(${users.length+1})` : ""}</ListSubheader>}
                         style={{maxHeight:"300px",overflowY:"scroll",}}
                         
                     >
@@ -499,36 +646,74 @@ export default function Room(props) {
                     </List>
                 </div>    
                 <Divider />            
-                <div className="messages">
+                <div className="messages" ref={messageContainerRef}>
                     <List 
-                        subheader={<ListSubheader className="listHeader" component="div">CHAT</ListSubheader>}
+                        subheader={<ListSubheader className="listHeader" component="div">CHAT {chats.length>0 ? `(${chats.length})` : ""}</ListSubheader>}
                         disablePadding
                     >
                         {
-                            chats.map((chat,index)=>{
-                                return (
-                                    <ListItem key={index}>
-                                        <ListItemText primary={chat.sender} secondary={<Typography variant="body2" noWrap color="textSecondary">{chat.text}</Typography>} />
-                                        <ListItemSecondaryAction>
-                                            <div className="status">
-                                                {chat.date.getHours() + ":" + chat.date.getMinutes()}
-                                            </div>
-                                        </ListItemSecondaryAction>
-                                    </ListItem>
+                            chats.map((chat)=>{
+                                let role=chat.role;
+                                let onClick=null;
+                                let repliedText=chats.filter((elem)=>elem.id===chat.repliedID)[0]?.text;
+                                if(role==="question"){
+                                    onClick=()=>{
+                                        selectQuestion(chat.id)
+                                    }
+                                }
+                                const ratingOnChange=(value)=>{
+                                    rateMessage(value,chat.id);
+                                }
 
+                                return (
+                                    <ChatListItem key={chat.id} id={chat.id} rate={chat.rate} ratingOnChange={ratingOnChange} sender={chat.sender} repliedText={repliedText} hardness={chat.hardness} role={role} onClick={onClick} text={chat.text} date={chat.date} isAdmin={isAdmin} />
                                 )
                             })
                         }
                     </List>
                 </div>
                 <Divider />
+                {
+                    !isAdmin && selectedQuestionID &&
+                    (
+                        <div className="replyContainer">
+                            <span onClick={()=>{setSelectedQuestionID(null)}}><CloseIcon /></span>
+                            Question: &nbsp;
+                            {
+                                chats.filter((chat)=>chat.id===selectedQuestionID)[0]?.text
+                            }
+                        </div>
+                    )
+                }
+                {
+                    isAdmin && 
+                    (
+                        <div className="msgMode">
+                            <Button variant="outlined" onClick={()=>{setIsQuestion(true)}} >Question {isQuestion ? <TickIcon /> : ""} </Button>
+                            <Button variant="outlined" onClick={()=>{setIsQuestion(false)}} >Message {!isQuestion ? <TickIcon /> : "" } </Button>
+                            {
+                                isQuestion &&
+                                (<InputBase 
+                                    type="number" 
+                                    startAdornment={<InputAdornment position="start" component="label">Hardness: </InputAdornment>}
+                                    inputProps={{min:0,max:10}}
+                                    onChange={(e)=>{setQuestionHardness(e.target.value)}}
+                                    value={questionHardness}
+                                />)
+                            }
+                        </div>
+                    )
+                }
                 <form className="form" onSubmit={sendMessages}>
                     <InputBase
                         className="input"
-                        placeholder="Message..."
-                        value={message}
-                        onChange={(e)=>{setMessage(e.target.value)}}
+                        placeholder={selectedQuestionID ? "Reply..." :"Message..." }
+                        value={messageInput}
+                        onChange={(e)=>{setMessageInput(e.target.value)}}
                         variant="outlined"
+                        inputProps={{
+                            ref:messageInputRef
+                        }}
                     />
                     <IconButton type="submit" aria-label="Send Message">
                         <MessageIcon/>
@@ -561,6 +746,12 @@ export default function Room(props) {
                 <Button onClick={shareWhiteboard}>
                     Create Whiteboard
                 </Button>
+                {
+                    isAdmin &&
+                    (<Button onClick={clearChat}>
+                        clear chat
+                    </Button>)
+                }
                 {/* <IconButton onClick={()=>{props.setDarkTheme(!props.darkTheme)}} aria-label="theme">
                     { props.darkTheme ? <SunIcon/> : <MoonIcon /> } 
                 </IconButton>                */}
