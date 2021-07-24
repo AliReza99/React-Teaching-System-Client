@@ -121,7 +121,12 @@
     }
 
 }
-// .users{
-//     background-color: #f00;
-
-// }
+.selfUserContainer{
+    font-style:italic;
+    .caption{
+        opacity:.7;
+        font-size:.9em;
+        color:#ccc;
+        font-style: normal;
+    }
+}

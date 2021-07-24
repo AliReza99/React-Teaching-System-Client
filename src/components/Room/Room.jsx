@@ -549,7 +549,6 @@ export default function Room(props) {
             roomID:room
         });
         setIsJoinedRoom(true);
-        setSelfUsernameInRoom(usernameInput);
     }
 
     const handleInput=(e,setter)=>{
@@ -650,8 +649,11 @@ export default function Room(props) {
             
         });
 
-        socketRef.current.on('set-is-admin',()=>{
-            setIsAdmin(true);
+        socketRef.current.on('self-info',(data)=>{
+            if(data.isAdmin){
+                setIsAdmin(true);
+            }
+            setSelfUsernameInRoom(data.username);
         })
         
 
@@ -834,7 +836,7 @@ export default function Room(props) {
                         {
                             isJoinedRoom && 
                             <ListItem>
-                                <ListItemText primary={selfUsernameInRoom}/>
+                                <ListItemText className="selfUserContainer" primary={<Typography component="div">{selfUsernameInRoom} <span className="caption"> &nbsp; You</span> </Typography>} />
                             </ListItem>
                         }
                         {
