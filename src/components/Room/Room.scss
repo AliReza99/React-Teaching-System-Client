@@ -66,10 +66,11 @@
 .whiteboardContainer{
     position: relative;
     .buttonsContainer{
+        display: flex;
         position: absolute;
         top: 360px;
         left: 0;
-        background-color: #000;
+        background-color: #333;
     }
 }
 .msgMode{
@@ -98,6 +99,27 @@
 }
 .rating{
     margin-top:10px;
+}
+.selected{
+    background-color: #eee !important;
+    color: #000 !important;
+}
+.cp{
+    position: relative;
+    .colorPickerContainer{
+        position: absolute;
+        left: calc(-85px + 50%);
+        top: 60px;
+        opacity: 0;
+        visibility: hidden;
+        transition: visibility .3s ,opacity .3s ,top .2s;
+        &.show{
+            visibility: visible;
+            opacity: 1;    
+            top: calc(100% + 10px);
+        }
+    }
+
 }
 // .users{
 //     background-color: #f00;

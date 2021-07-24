@@ -15,6 +15,8 @@ import {
     Button,
     Divider,
     InputAdornment,
+    Tooltip,
+    ClickAwayListener,
 } from "@material-ui/core";
 import {
     MicRounded as MicrophoneIcon,
@@ -24,12 +26,21 @@ import {
     MicOffRounded as MicrophoneDisableIcon,
     CheckRounded as TickIcon,
     Close as CloseIcon,
+    Gesture as GestureIcon,
+    ShowChartTwoTone as LineIcon,
+    Crop75 as SquareIcon,
+    FiberManualRecordOutlined as CircleIcon,
+    TextFields as TextIcon,
+    InsertPhoto as ImageIcon,
+    ColorLens as ColorIcon
     // StarRate as StarIcon,
     // CallEndRounded as HangupIcon,
 } from "@material-ui/icons";
 import Rating from '@material-ui/lab/Rating';
+import { BlockPicker } from 'react-color'
 
 const SOCKET_ENDPOINT="http://localhost:5001";
+const colorsArr=["#000000","#E53935","#CFD8DC","#8E24AA","#303F9F","#0097A7","#FFEB3B","#76FF03","#4FC3F7","#CE93D8"];
 
 const useStyle = makeStyles(theme=>{
     return {
@@ -229,15 +240,15 @@ const ChatListItem=({id,role,onClick,text,date,sender,hardness,repliedText,isAdm
 
 
 export default function Room(props) {
+    const [room,setRoom] = useState("room1");
     const [messageInput,setMessageInput] = useState("");
+    const [usernameInput,setUsernameInput] = useState("");
     const [desktopIsSharing,setDesktopIsSharing]=useState(false);
     const [micIsSharing,setMicIsSharing]=useState(true);
     const [isCanvasSharing,setIsCanvasSharing]=useState(false);
     const [chats,setChats] = useState([]);
     const [users,setUsers] = useState([]);
     const [isJoinedRoom,setIsJoinedRoom] = useState(false);
-    const [usernameInput,setUsernameInput] = useState("");
-    const [room,setRoom] = useState("room1");
     const [streams,setStreams]= useState([]);
     const [selfStream,setSelfStream] = useState(null);
     const [selfUsernameInRoom,setSelfUsernameInRoom] = useState(null);
@@ -245,6 +256,9 @@ export default function Room(props) {
     const [isQuestion,setIsQuestion] = useState(false);
     const [questionHardness,setQuestionHardness] = useState(5);
     const [selectedQuestionID,setSelectedQuestionID] = useState(null);
+    const [selectedCanvasButton,setSelectedCanvasButton] = useState(4);
+    const [pickedColor,setPickedColor]= useState(colorsArr[0]);
+    const [showColorPicker,setShowColorPicker]=useState(false);
 
     const socketRef=useRef(null);
     const connectionsRef=useRef({});
@@ -254,7 +268,7 @@ export default function Room(props) {
     const messageContainerRef= useRef(null);
     
     const classes=useStyle();
-      
+
     
     const handleNegotiationNeeded=async(pc)=> {
         const offer=await pc.createOffer();
@@ -315,9 +329,7 @@ export default function Room(props) {
         
     }
 
-    const shareWhiteboard=()=>{
-        //initiate canvas
-        const myCanvas= whiteboardRef.current;
+    const addDrawEvent=(myCanvas)=>{
         const ctx = myCanvas.getContext("2d");
 
         let isDrawing = false;
@@ -325,41 +337,179 @@ export default function Room(props) {
         let y = 0;
 
 
-        myCanvas.addEventListener('mousedown', e => {
-            x = e.offsetX;
-            y = e.offsetY;
-            isDrawing = true;
-        });
-        
-        function drawLine(ctx, x1, y1, x2, y2) {
+        const drawLine=(ctx, x1, y1, x2, y2) =>{
             ctx.beginPath();
-            ctx.strokeStyle = 'red';
+            // ctx.strokeStyle = '#f00';
             ctx.lineWidth = 3;
             ctx.moveTo(x1, y1);
             ctx.lineTo(x2, y2);
             ctx.stroke();
             ctx.closePath();
         }
+
+        myCanvas.onmousedown= (e) => {
+            x = e.offsetX;
+            y = e.offsetY;
+            isDrawing = true;
+        }
         
-        myCanvas.addEventListener('mousemove', e => {
+        
+        myCanvas.onmousemove= (e) => {
             if (isDrawing === true) {
                 drawLine(ctx, x, y, e.offsetX, e.offsetY);
                 x = e.offsetX;
                 y = e.offsetY;
             }
-        });
+        }
         
-        myCanvas.addEventListener('mouseup', e => {
+        myCanvas.onmouseup = (e) => {
             if (isDrawing === true) {
                 drawLine(ctx, x, y, e.offsetX, e.offsetY);
                 x = 0;
                 y = 0;
                 isDrawing = false;
             }
-        });
+        }
+    }
+    const drawText=(myCanvas)=>{
+        const ctx = myCanvas.getContext("2d");
+        let x = 0;
+        let y = 0;
+
+        myCanvas.onclick=(e)=>{
+            x = e.offsetX;
+            y = e.offsetY;
+            const text =prompt('Enter Text');
+            // ctx.fillStyle = "#f00";
+            ctx.font = "20px Arial";
+            ctx.fillText(text, x, y);
+        }
+
+
+
+    }
+    const clearCanvas=(myCanvas)=>{
+        const ctx=myCanvas.getContext("2d");
+        const prevColor=ctx.fillStyle;
+        ctx.clearRect(0, 0, myCanvas.width, myCanvas.height);
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, whiteboardRef.current.width, whiteboardRef.current.height);
+
+        ctx.fillStyle=prevColor;
         
+    }
+    const drawEllipse=(ctx,x1, y1, x2, y2)=> {
+
+        let radiusX = (x2 - x1) * 0.5,   /// radius for x based on input
+            radiusY = (y2 - y1) * 0.5,   /// radius for y based on input
+            centerX = x1 + radiusX,      /// calc center
+            centerY = y1 + radiusY,
+            step = 0.01,                 /// resolution of ellipse
+            a = step,                    /// counter
+            pi2 = Math.PI * 2 - step;    /// end angle
         
+        ctx.beginPath();
+    
+        /// set start point at angle 0
+        ctx.moveTo(centerX + radiusX * Math.cos(0),
+                   centerY + radiusY * Math.sin(0));
+    
+        /// create the ellipse    
+        for(; a < pi2; a += step) {
+            ctx.lineTo(centerX + radiusX * Math.cos(a),
+                       centerY + radiusY * Math.sin(a));
+        }
         
+        ctx.closePath();
+        ctx.stroke();
+    }
+    
+    const drawCircle=(myCanvas)=>{
+        const ctx=myCanvas.getContext("2d");
+        let x1;
+        let y1;
+    
+        myCanvas.onmouseup = (e)=> {
+            /// get corrected mouse position and store as first point
+            var rect = myCanvas.getBoundingClientRect();
+            
+            const x2 = e.clientX - rect.left
+            const y2 = e.clientY - rect.top;
+            drawEllipse(ctx,x1, y1, x2, y2);
+        }
+        
+        myCanvas.onmousedown = (e)=> {
+            var rect = myCanvas.getBoundingClientRect();
+            x1 = e.clientX - rect.left;
+            y1 = e.clientY - rect.top;
+        }
+    }
+    const drawLine=(myCanvas)=>{
+        const ctx=myCanvas.getContext("2d");
+        let x1=0,y1=0;
+
+        myCanvas.onmousedown=(e)=>{
+            x1=e.offsetX;
+            y1=e.offsetY;
+        }
+        myCanvas.onmouseup=(e)=>{
+            let x2=e.offsetX;
+            let y2=e.offsetY;
+            ctx.beginPath();
+            ctx.lineWidth = '3'; // width of the line
+            // ctx.strokeStyle = '#f00'; // color of the line
+            ctx.moveTo(x1,y1); // begins a new sub-path based on the given x and y values.
+            ctx.lineTo(x2, y2); // used to create a pointer based on x and y  
+            ctx.stroke(); // this is where the actual drawing happens.
+        }
+
+    }
+    const removeEvents=(myCanvas)=>{
+        myCanvas.onmousedown=null;
+        myCanvas.onmousemove=null
+        myCanvas.onmouseup=null;
+        myCanvas.onclick=null;
+    }
+
+    const setCanvasColors=(myCanvas,color)=>{
+        const ctx= myCanvas.getContext("2d");
+        ctx.strokeStyle=color;
+        ctx.fillStyle=color;
+
+    }
+    useEffect(()=>{
+        setCanvasColors(whiteboardRef.current,pickedColor.hex);
+    },[pickedColor]);
+    const drawRect=(myCanvas)=>{
+        const ctx=myCanvas.getContext("2d");
+        let x=0,y=0;
+
+        myCanvas.onmousedown=(e)=>{
+            x=e.offsetX;
+            y=e.offsetY;
+        }
+
+        myCanvas.onmouseup=(e)=>{
+            let width= e.offsetX - x;
+            let height= e.offsetY - y;
+            ctx.beginPath();
+            // ctx.strokeStyle = "#f00";
+            ctx.rect(x, y, width, height);
+            ctx.stroke();
+        }
+    }
+    
+    const shareWhiteboard=()=>{
+        //initiate canvas
+        // drawLine(whiteboardRef.current);
+        // drawRect(whiteboardRef.current);
+        // drawCircle(whiteboardRef.current);
+        // drawText(whiteboardRef.current);
+        
+        clearCanvas(whiteboardRef.current);
+        addDrawEvent(whiteboardRef.current);        
+
+
         
         const canvasStream = whiteboardRef.current.captureStream(30);
         const canvasTrack = canvasStream.getVideoTracks()[0];
@@ -369,6 +519,13 @@ export default function Room(props) {
         setSelfStream(canvasStream);
         setIsCanvasSharing(true);
     }
+
+    // useEffect(()=>{
+    //     if(isAdmin){
+    //         shareWhiteboard();
+
+    //     }
+    // },[isAdmin])
     
     const shareWebcam = async()=>{
         const tempStream = await captureWebcam();
@@ -462,8 +619,8 @@ export default function Room(props) {
 
     useEffect(()=>{
         socketRef.current.on('new-user-joined',async({target,username})=>{ //start of peer A
-            connectionsRef.current[target]=createPeer(target,username);
             const newUser = new User(username,target);
+            connectionsRef.current[target]=createPeer(target,username);
             setUsers((lastVal)=>{
                 return [...lastVal,newUser]
             })
@@ -473,7 +630,6 @@ export default function Room(props) {
                 });
             }
             else{
-
                 const offer=await connectionsRef.current[target].createOffer();
                 await connectionsRef.current[target].setLocalDescription(offer);
                 socketRef.current.emit('offer',{
@@ -594,10 +750,57 @@ export default function Room(props) {
                     <div className="vidContainer self whiteboardContainer" style={{display:isCanvasSharing? "flex" : "none"}}>
                         <canvas width="560" height="360" className="vid" id="whiteboard" ref={whiteboardRef} ></canvas>
                         <div className="buttonsContainer">
-                            <Button component="label">
-                                Image
-                                <input type="file" onChange={handleFileChange} ref={fileInputRef} hidden/>
+                            <Tooltip title="Insert Image" arrow>
+                                <Button component="label">
+                                    <ImageIcon />
+                                    <input type="file" onChange={handleFileChange} ref={fileInputRef} hidden/>
+                                </Button>
+                            </Tooltip>
+
+                            <Tooltip title="Line" arrow>
+                                <Button className={selectedCanvasButton===0 ? "selected" : ""} onClick={()=>{setSelectedCanvasButton(0);removeEvents(whiteboardRef.current);drawLine(whiteboardRef.current); }}>
+                                    <LineIcon />
+                                </Button>     
+                            </Tooltip>
+
+                                                
+                            <Tooltip title="Square" arrow>
+                                <Button className={selectedCanvasButton===1 ? "selected" : ""} onClick={()=>{setSelectedCanvasButton(1);removeEvents(whiteboardRef.current);drawRect(whiteboardRef.current); }}>
+                                    <SquareIcon />
+                                </Button>                            
+                            </Tooltip>
+                            
+                            <Tooltip title="Circle" arrow>
+                                <Button className={selectedCanvasButton===2 ? "selected" : ""} onClick={()=>{setSelectedCanvasButton(2);removeEvents(whiteboardRef.current);drawCircle(whiteboardRef.current); }}>
+                                    <CircleIcon />
+                                </Button>
+                            </Tooltip>
+
+                            <Tooltip title="Text" arrow>
+                                <Button className={selectedCanvasButton===3 ? "selected" : ""} onClick={()=>{setSelectedCanvasButton(3);removeEvents(whiteboardRef.current);drawText(whiteboardRef.current); }}>
+                                    <TextIcon />
+                                </Button>
+                            </Tooltip>
+                            
+                            <Tooltip title="Draw" arrow>
+                                <Button className={selectedCanvasButton===4 ? "selected" : ""} onClick={()=>{setSelectedCanvasButton(4);removeEvents(whiteboardRef.current);addDrawEvent(whiteboardRef.current); }}>
+                                    <GestureIcon />
+                                </Button>                            
+                            </Tooltip>
+                            <Button onClick={()=>{clearCanvas(whiteboardRef.current)}}>
+                                Clear
                             </Button>
+                            <ClickAwayListener onClickAway={()=>{setShowColorPicker(false)}} >
+                                <div className="cp" >
+                                    <Button onClick={()=>{setShowColorPicker(val=>!val)}}>
+                                        <ColorIcon/>
+                                    </Button>
+                                        <div className={["colorPickerContainer",showColorPicker ? "show" : ""].join(" ")} >
+                                            <BlockPicker color={pickedColor} width={170} onChangeComplete={setPickedColor} colors={colorsArr}/>
+                                        </div>
+                                </div>
+                            </ClickAwayListener>
+                            
                         </div>
                     </div> 
                     {
