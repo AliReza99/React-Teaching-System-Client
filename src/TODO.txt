@@ -1,8 +1,7 @@
 add support for log room members activity and send back to admin 
-dump last stream when change share method and remove tracks from connection
-fix if user disconnected it cant join room with that username (backend bug)
-prevent user from click share for more than 1 time
-
+add ability to leave room and join another room
+fix canvas size and resize
+hide whiteboard if whiteboard sharer disconnected or user disable whiteboard
 
 set resolution for share streams when deploy
 unmute video tags when deploy

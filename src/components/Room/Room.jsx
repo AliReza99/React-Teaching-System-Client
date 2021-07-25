@@ -30,7 +30,7 @@ import {
     Close as CloseIcon,
     Gesture as GestureIcon,
     ShowChartTwoTone as LineIcon,
-    Crop75 as SquareIcon,
+    Crop32 as SquareIcon,
     FiberManualRecordOutlined as CircleIcon,
     TextFields as TextIcon,
     InsertPhoto as ImageIcon,
@@ -166,6 +166,19 @@ const toggleStreamTrack=(stream,type,enabled)=>{
         })
     }
 }
+
+const captureMic=()=> {
+    return new Promise((resolve,reject) => {
+        navigator.mediaDevices.getUserMedia({audio:true})
+        .then(currentStream=>{
+            resolve(currentStream);
+        })
+        .catch(() =>{
+            reject();
+        })
+    });
+}
+
 const captureScreen=()=>{
     return new Promise((resolve, reject) =>{
         /*
@@ -197,7 +210,7 @@ export default function Room(props) {
     const [messageInput,setMessageInput] = useState("");
     const [usernameInput,setUsernameInput] = useState("");
     const [desktopIsSharing,setDesktopIsSharing]=useState(false);
-    const [micIsSharing,setMicIsSharing]=useState(true);
+    const [micIsSharing,setMicIsSharing]=useState(false);
     const [isCanvasSharing,setIsCanvasSharing]=useState(false);
     const [chats,setChats] = useState([]);
     const [users,setUsers] = useState([]);
@@ -242,10 +255,20 @@ export default function Room(props) {
     }
     const addStreams=useCallback((e,target,username)=>{
         console.log('addstreams ',username);
-        const newStream= new VidStream(e.streams[0],target,username);
+        
         setStreams((last)=>{
-            const newVal=last.filter(val=>val.stream.id !==newStream.stream.id);
-            return [...newVal,newStream];
+            const searchedStream = last.filter(val=>val.target === target)[0];
+            
+            if(searchedStream){ //if track already existed
+                const newTrack = e.streams[0].getAudioTracks()[0] || e.streams[0].getVideoTracks()[0];
+                searchedStream.stream.addTrack(newTrack); //add recieved track to last stream from user
+                return last; 
+            }
+            else{
+                const newStream= new VidStream(e.streams[0],target,username);
+                const newVal=last.filter(val=>val.stream.id !==newStream.stream.id);
+                return [...newVal,newStream];
+            }
         });
     },[]);
     const handleICECandidateEvent=useCallback((e,pc)=>{
@@ -279,16 +302,56 @@ export default function Room(props) {
     };
 
 
-    const shareDesktop=async()=>{
-        const tempStream = await captureScreen();
-        
-        for(const key in connectionsRef.current){
-            tempStream.getTracks().forEach((track)=>{
-                connectionsRef.current[key].addTrack(track,tempStream);
-            });
+    const shareMicrophone=async()=>{
+        let tempStream;
+        try{
+            tempStream = await captureMic();
         }
-        setSelfStream(tempStream);
+        catch(err){
+            console.log("Error happens when requesting for capture Microphone",err);
+            return;
+        }
+
+        const audioTrack = tempStream.getAudioTracks()[0];
+
+        for(const key in connectionsRef.current){
+            connectionsRef.current[key].addTrack(audioTrack,tempStream);
+        }
+
+        if(selfStream){ //if already has self stream
+            selfStream.addTrack(audioTrack,tempStream);
+        }
+        else{
+            setSelfStream(tempStream);
+        }
         
+        setMicIsSharing(true);
+    }
+    
+    const shareDesktop=async()=>{
+        let tempStream;
+        try{
+            tempStream = await captureScreen();
+        }
+        catch(err){
+            console.log("Error happens when requesting for capture screen",err);
+            return;
+        }
+
+        const videoTrack = tempStream.getVideoTracks()[0];
+
+        for(const key in connectionsRef.current){
+            connectionsRef.current[key].addTrack(videoTrack,tempStream);
+        }
+
+        if(selfStream){
+            selfStream.addTrack(videoTrack,tempStream);
+        }
+        else{
+            setSelfStream(tempStream);
+        }
+
+        setDesktopIsSharing(true);
     }
 
     useEffect(()=>{
@@ -572,7 +635,7 @@ export default function Room(props) {
         });
         
     },[]);
-    
+
     return (
         <Paper square className="container">
             <div className="main">
@@ -661,7 +724,7 @@ export default function Room(props) {
                             return (
                                 <div className="vidContainer" key={stream.id}>
                                     <div className="username">{username} </div>
-                                    <video className="vid"  ref={elem=>{if(elem) return elem.srcObject=stream}} muted autoPlay playsInline></video>
+                                    <video className="vid"  ref={elem=>{if(elem) return elem.srcObject=stream}} autoPlay playsInline></video>
                                 </div>                    
                             )
                         })
@@ -779,25 +842,65 @@ export default function Room(props) {
                 className={classes.nav}
             >
                 <IconButton 
-                    onClick={()=>{toggleStreamTrack(selfStream,'audio',micIsSharing);setMicIsSharing(!micIsSharing)}}
+                    onClick={()=>{
+                        if(!selfStream){ // no video track no mic track
+                            console.log('self stream was empty');
+                            shareMicrophone();
+                        }
+                        else{
+                            const hasAudio = selfStream.getAudioTracks().length !==0;
+
+                            if(hasAudio){
+                                console.log('has audio track so toggle audio')
+                                toggleStreamTrack(selfStream,'audio',!micIsSharing);
+                                setMicIsSharing(!micIsSharing)
+                            }
+                            else{
+                                shareMicrophone();
+                            }
+                        }
+                    }}
                     aria-label="Share Microphone"
                 >
                     { micIsSharing ? <MicrophoneIcon /> : <MicrophoneDisableIcon/> }
                 </IconButton>                
                 
                 <IconButton 
-                    onClick={()=>{toggleStreamTrack(selfStream,'video',desktopIsSharing);setDesktopIsSharing(!desktopIsSharing)}}
+                    onClick={()=>{
+                        if(!selfStream){ // no video track no mic track
+                            shareDesktop();
+                        }
+                        else{
+                            const hasVideo = selfStream.getVideoTracks().length !==0;
+
+                            if(hasVideo){
+                                toggleStreamTrack(selfStream,'video',!desktopIsSharing);
+                                setDesktopIsSharing(!desktopIsSharing)
+                            }
+                            else{
+                                shareDesktop();
+                            }
+
+                            
+                            
+                            
+                            
+                            // if(hasAudio){
+                            // }
+                            // if(!hasVideo && hasAudio){ //only has audio track
+                            //     console.log('only has video track so audio will addtrack');
+                            // }
+                            
+                        }
+                    }}
                     aria-label="Share Desktop" 
                 >
                     {desktopIsSharing ? <DesktopIcon /> : <DesktopDesableIcon/>}
                 </IconButton>                    
                 
-                <Button onClick={shareWebcam}>
+                {/* <Button onClick={shareWebcam}>
                     Share webcam
-                </Button>
-                <Button onClick={shareDesktop}>
-                    Share Desktop
-                </Button>
+                </Button> */}
                 <Button onClick={shareWhiteboard}>
                     Create Whiteboard
                 </Button>
@@ -823,6 +926,11 @@ export default function Room(props) {
                         </Button>
                     )
                 }
+                <Button onClick={()=>{
+                    console.log(connectionsRef.current)
+                }}>
+                    show connections
+                </Button>
                 {/* <IconButton onClick={()=>{props.setDarkTheme(!props.darkTheme)}} aria-label="theme">
                     { props.darkTheme ? <SunIcon/> : <MoonIcon /> } 
                 </IconButton>                */}
@@ -877,14 +985,3 @@ export default function Room(props) {
 //     vidElem.srcObject = null;
 // }
 
-// const captureMic=()=> {
-//     return new Promise((resolve,reject) => {
-//         navigator.mediaDevices.getUserMedia({audio:true})
-//         .then(currentStream=>{
-//             resolve(currentStream);
-//         })
-//         .catch(() =>{
-//             reject();
-//         })
-//     });
-// }
