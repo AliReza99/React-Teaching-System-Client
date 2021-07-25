@@ -1,7 +1,9 @@
 import React,{useEffect,useState,useRef,useCallback} from 'react';
+import "./Room.scss";
 import {io} from "socket.io-client";
 import {makeStyles} from "@material-ui/core/styles";
-import "./Room.scss";
+import { BlockPicker } from 'react-color';
+
 import {
     Paper,
     InputBase,
@@ -10,7 +12,7 @@ import {
     ListItem,
     ListItemText,
     Typography,
-    ListItemSecondaryAction,
+    // ListItemSecondaryAction,
     IconButton,
     Button,
     Divider,
@@ -32,15 +34,30 @@ import {
     FiberManualRecordOutlined as CircleIcon,
     TextFields as TextIcon,
     InsertPhoto as ImageIcon,
-    ColorLens as ColorIcon
-    // StarRate as StarIcon,
-    // CallEndRounded as HangupIcon,
+    ColorLens as ColorIcon,
+    
 } from "@material-ui/icons";
-import Rating from '@material-ui/lab/Rating';
-import { BlockPicker } from 'react-color'
 
-const SOCKET_ENDPOINT="http://localhost:5001";
-const colorsArr=["#000000","#E53935","#CFD8DC","#8E24AA","#303F9F","#0097A7","#FFEB3B","#76FF03","#4FC3F7","#CE93D8"];
+import ChatListItem from "../ChatListItem/ChatListItem";
+import {
+    drawText,
+    drawCircle,
+    drawLine,
+    drawRect,
+    freehandDraw,
+    clearCanvas,
+    setCanvasColors
+} from "../../scripts/canvasDraw";
+
+const SOCKET_ENDPOINT="http://localhost:5001"; //server endpoint
+const colorsArr=["#000000","#E53935","#CFD8DC","#8E24AA","#303F9F","#0097A7","#FFEB3B","#76FF03","#4FC3F7","#CE93D8"]; // colors for canvas draw
+
+const removeEvents=(element)=>{
+    element.onmousedown=null;
+    element.onmousemove=null
+    element.onmouseup=null;
+    element.onclick=null;
+}
 
 const useStyle = makeStyles(theme=>{
     return {
@@ -171,71 +188,7 @@ const captureScreen=()=>{
         
 }
 
-const ChatListItem=({id,role,onClick,text,date,sender,hardness,repliedText,isAdmin,ratingOnChange,rate})=>{
-    let isButton= false;
-    const classes=[];
-    let primaryText;
-    if(role==="question"){
-        isButton= true;
-        classes.push("question");
-        primaryText=`Question (Hardness: ${hardness})`;
-    }
-    else if(role==="answer"){
-        classes.push("answer");
-        primaryText=`${sender} (Replied to: ${repliedText})`;
-    }
-    else{
-        primaryText=sender;
-    }
-    const [value,setValue]=useState(rate);
-    
-    return (
-        <ListItem 
-            button={isButton} 
-            onClick={onClick}
-        >
-            <ListItemText 
-                className={classes.join(" ")}
-                primary={primaryText}
-                secondary={
-                    <>
-                        <Typography component="span" style={{display:"block"}} variant={"body2"} noWrap color="textSecondary" >
-                            {text}
-                        </Typography>
-                        {
-                            role==="answer" && isAdmin &&
-                            <Rating
-                                className="rating"
-                                name={`answer-rating${id}`}
-                                value={value}
-                                onChange={(e,newVal)=>{
-                                    setValue(newVal);
-                                    ratingOnChange(newVal);
-                                }}
-                                size="small"
-                            />
-                        }
-                        {
-                            role==="answer" && !isAdmin &&
-                            <Rating
-                                className="rating"
-                                name={`answer-rating${id}`}
-                                value={rate}
-                                size="small"
-                                readOnly
-                            />
-                        }
-                    </>
-                    
-                }/>
-            <ListItemSecondaryAction>
-                <div className="status">
-                    {date.getHours() + ":" + date.getMinutes()}
-                </div>
-            </ListItemSecondaryAction>
-        </ListItem>
-    )
-}
+
 
 
 
@@ -259,13 +212,22 @@ export default function Room(props) {
     const [selectedCanvasButton,setSelectedCanvasButton] = useState(4);
     const [pickedColor,setPickedColor]= useState(colorsArr[0]);
     const [showColorPicker,setShowColorPicker]=useState(false);
-
+    const [isShowFastplay,setIsShowFastplay] = useState(false);
+    const [isPreviousWhiteboardRecieved,setIsPreviousWhiteboardRecieved]=useState(false);
+    const [fastplaySender,setFastplaySender] = useState("");
+    const [wbSender,setWbSender]=useState("");
+    const [isWhiteboardSharing,setIsWhiteboardSharing] = useState(false);
+    
     const socketRef=useRef(null);
     const connectionsRef=useRef({});
     const whiteboardRef=useRef(null);
     const fileInputRef=useRef(null);
     const messageInputRef = useRef(null);
     const messageContainerRef= useRef(null);
+    const whiteboardImgRef= useRef(null);
+    const fastplayImgRef= useRef(null);
+    const whiteboardDataRef=useRef([]);
+    const isFastplayPlaying= useRef(false);
     
     const classes=useStyle();
 
@@ -329,203 +291,64 @@ export default function Room(props) {
         
     }
 
-    const addDrawEvent=(myCanvas)=>{
-        const ctx = myCanvas.getContext("2d");
-
-        let isDrawing = false;
-        let x = 0;
-        let y = 0;
-
-
-        const drawLine=(ctx, x1, y1, x2, y2) =>{
-            ctx.beginPath();
-            // ctx.strokeStyle = '#f00';
-            ctx.lineWidth = 3;
-            ctx.moveTo(x1, y1);
-            ctx.lineTo(x2, y2);
-            ctx.stroke();
-            ctx.closePath();
-        }
-
-        myCanvas.onmousedown= (e) => {
-            x = e.offsetX;
-            y = e.offsetY;
-            isDrawing = true;
-        }
-        
-        
-        myCanvas.onmousemove= (e) => {
-            if (isDrawing === true) {
-                drawLine(ctx, x, y, e.offsetX, e.offsetY);
-                x = e.offsetX;
-                y = e.offsetY;
-            }
-        }
-        
-        myCanvas.onmouseup = (e) => {
-            if (isDrawing === true) {
-                drawLine(ctx, x, y, e.offsetX, e.offsetY);
-                x = 0;
-                y = 0;
-                isDrawing = false;
-            }
-        }
-    }
-    const drawText=(myCanvas)=>{
-        const ctx = myCanvas.getContext("2d");
-        let x = 0;
-        let y = 0;
-
-        myCanvas.onclick=(e)=>{
-            x = e.offsetX;
-            y = e.offsetY;
-            const text =prompt('Enter Text');
-            // ctx.fillStyle = "#f00";
-            ctx.font = "20px Arial";
-            ctx.fillText(text, x, y);
-        }
-
-
-
-    }
-    const clearCanvas=(myCanvas)=>{
-        const ctx=myCanvas.getContext("2d");
-        const prevColor=ctx.fillStyle;
-        ctx.clearRect(0, 0, myCanvas.width, myCanvas.height);
-        ctx.fillStyle = "#fff";
-        ctx.fillRect(0, 0, whiteboardRef.current.width, whiteboardRef.current.height);
-
-        ctx.fillStyle=prevColor;
-        
-    }
-    const drawEllipse=(ctx,x1, y1, x2, y2)=> {
-
-        let radiusX = (x2 - x1) * 0.5,   /// radius for x based on input
-            radiusY = (y2 - y1) * 0.5,   /// radius for y based on input
-            centerX = x1 + radiusX,      /// calc center
-            centerY = y1 + radiusY,
-            step = 0.01,                 /// resolution of ellipse
-            a = step,                    /// counter
-            pi2 = Math.PI * 2 - step;    /// end angle
-        
-        ctx.beginPath();
-    
-        /// set start point at angle 0
-        ctx.moveTo(centerX + radiusX * Math.cos(0),
-                   centerY + radiusY * Math.sin(0));
-    
-        /// create the ellipse    
-        for(; a < pi2; a += step) {
-            ctx.lineTo(centerX + radiusX * Math.cos(a),
-                       centerY + radiusY * Math.sin(a));
-        }
-        
-        ctx.closePath();
-        ctx.stroke();
-    }
-    
-    const drawCircle=(myCanvas)=>{
-        const ctx=myCanvas.getContext("2d");
-        let x1;
-        let y1;
-    
-        myCanvas.onmouseup = (e)=> {
-            /// get corrected mouse position and store as first point
-            var rect = myCanvas.getBoundingClientRect();
-            
-            const x2 = e.clientX - rect.left
-            const y2 = e.clientY - rect.top;
-            drawEllipse(ctx,x1, y1, x2, y2);
-        }
-        
-        myCanvas.onmousedown = (e)=> {
-            var rect = myCanvas.getBoundingClientRect();
-            x1 = e.clientX - rect.left;
-            y1 = e.clientY - rect.top;
-        }
-    }
-    const drawLine=(myCanvas)=>{
-        const ctx=myCanvas.getContext("2d");
-        let x1=0,y1=0;
-
-        myCanvas.onmousedown=(e)=>{
-            x1=e.offsetX;
-            y1=e.offsetY;
-        }
-        myCanvas.onmouseup=(e)=>{
-            let x2=e.offsetX;
-            let y2=e.offsetY;
-            ctx.beginPath();
-            ctx.lineWidth = '3'; // width of the line
-            // ctx.strokeStyle = '#f00'; // color of the line
-            ctx.moveTo(x1,y1); // begins a new sub-path based on the given x and y values.
-            ctx.lineTo(x2, y2); // used to create a pointer based on x and y  
-            ctx.stroke(); // this is where the actual drawing happens.
-        }
-
-    }
-    const removeEvents=(myCanvas)=>{
-        myCanvas.onmousedown=null;
-        myCanvas.onmousemove=null
-        myCanvas.onmouseup=null;
-        myCanvas.onclick=null;
-    }
-
-    const setCanvasColors=(myCanvas,color)=>{
-        const ctx= myCanvas.getContext("2d");
-        ctx.strokeStyle=color;
-        ctx.fillStyle=color;
-
-    }
     useEffect(()=>{
         setCanvasColors(whiteboardRef.current,pickedColor.hex);
     },[pickedColor]);
-    const drawRect=(myCanvas)=>{
-        const ctx=myCanvas.getContext("2d");
-        let x=0,y=0;
 
-        myCanvas.onmousedown=(e)=>{
-            x=e.offsetX;
-            y=e.offsetY;
-        }
-
-        myCanvas.onmouseup=(e)=>{
-            let width= e.offsetX - x;
-            let height= e.offsetY - y;
-            ctx.beginPath();
-            // ctx.strokeStyle = "#f00";
-            ctx.rect(x, y, width, height);
-            ctx.stroke();
-        }
-    }
     
     const shareWhiteboard=()=>{
         //initiate canvas
-        // drawLine(whiteboardRef.current);
-        // drawRect(whiteboardRef.current);
-        // drawCircle(whiteboardRef.current);
-        // drawText(whiteboardRef.current);
-        
         clearCanvas(whiteboardRef.current);
-        addDrawEvent(whiteboardRef.current);        
+        freehandDraw(whiteboardRef.current); //set freehand event as default draw method    
 
-
-        
-        const canvasStream = whiteboardRef.current.captureStream(30);
-        const canvasTrack = canvasStream.getVideoTracks()[0];
-        for(const key in connectionsRef.current){
-            connectionsRef.current[key].addTrack(canvasTrack,canvasStream);
-        }
-        setSelfStream(canvasStream);
         setIsCanvasSharing(true);
     }
 
+    const requestPrevWhiteboardData=()=>{
+        socketRef.current.emit("full-whiteboard-data");
+    }
+
+    const fastplayImgs=async()=>{
+        if(isFastplayPlaying.current){ //to avoid multiple fastplay at the same time 
+            return;
+        }
+        setIsShowFastplay(true);
+        isFastplayPlaying.current=true; 
+
+        const wbData = whiteboardDataRef.current;
+        let wbSender = wbData[0].sender; 
+        setFastplaySender(wbSender);
+        
+        for(let i=0;i<wbData.length;i++){
+            
+            if(wbSender !== wbData[i].sender){ //change sender name to new sender
+                wbSender = wbData[i].sender;
+                setFastplaySender(wbSender);
+            }
+            fastplayImgRef.current.src = wbData[i].base64ImageData;
+            await new Promise(r => setTimeout(r, 120)); //wait 100ms
+        }
+        isFastplayPlaying.current=false; //release fastplay button action
+    }
+    
     // useEffect(()=>{
     //     if(isAdmin){
-    //         shareWhiteboard();
-
+    //         window.setTimeout(() => {
+    //             shareWhiteboard();
+    //         }, 1000);
     //     }
-    // },[isAdmin])
+    // },[isAdmin]);
+
+    useEffect(()=>{
+        if(isCanvasSharing){
+            const quality = .5;
+            window.setInterval(()=>{
+                const base64ImageData = whiteboardRef.current.toDataURL("image/png",quality);
+                socketRef.current.emit("whiteboard-data",{base64ImageData:base64ImageData})
+            },1000);
+        }
+    },[isCanvasSharing]);
+
     
     const shareWebcam = async()=>{
         const tempStream = await captureWebcam();
@@ -619,10 +442,11 @@ export default function Room(props) {
     useEffect(()=>{
         socketRef.current.on('new-user-joined',async({target,username})=>{ //start of peer A
             const newUser = new User(username,target);
-            connectionsRef.current[target]=createPeer(target,username);
+            connectionsRef.current[target] = createPeer(target,username);
             setUsers((lastVal)=>{
                 return [...lastVal,newUser]
-            })
+            });
+
             if(selfStream){
                 selfStream.getTracks().forEach((track)=>{
                     connectionsRef.current[target].addTrack(track,selfStream);
@@ -637,10 +461,31 @@ export default function Room(props) {
                 });
             }
         })
+
     },[selfStream]);
 
-    useEffect(()=>{ 
-        socketRef.current.on('chat',({sender,text,date,id,role,rate,hardness,repliedID})=>{
+    useEffect(()=>{
+        
+        socketRef.current.on("whiteboard-data",(data)=>{
+            if(isPreviousWhiteboardRecieved){ //if previous whiteboard data recieved then you save current whiteboard sharing data
+                whiteboardDataRef.current.push(data);
+            }
+            whiteboardImgRef.current.src=data.base64ImageData;
+            setWbSender(data.sender); // will not rerender if sender doesn't changed
+            setIsWhiteboardSharing(true);
+        });
+    },[isPreviousWhiteboardRecieved])
+    
+    useEffect(()=>{
+        
+        socketRef.current.on('self-info',(data)=>{
+            if(data.isAdmin){
+                setIsAdmin(true);
+            }
+            setSelfUsernameInRoom(data.username);
+        });
+
+        socketRef.current.on('chat',({sender,text,date,id,role,rate,hardness,repliedID})=>{ // recieve new chat message
             const msg=new Message(id,sender,text,date,role,rate,hardness,repliedID);
             setChats(prev=>{
                 return [...prev,msg]
@@ -649,16 +494,7 @@ export default function Room(props) {
             
         });
 
-        socketRef.current.on('self-info',(data)=>{
-            if(data.isAdmin){
-                setIsAdmin(true);
-            }
-            setSelfUsernameInRoom(data.username);
-        })
-        
-
-        
-        socketRef.current.on('full-chat-update',(chatsArr)=>{
+        socketRef.current.on('full-chat-update',(chatsArr)=>{ //recieve previous chats 
             const dateCorrectedArr= chatsArr.map((chat)=>new Message(chat.id,chat.sender,chat.text,chat.date,chat.role,chat.rate,chat.hardness));
             setChats(()=>{
                 return dateCorrectedArr;
@@ -666,13 +502,41 @@ export default function Room(props) {
             if(dateCorrectedArr.length ===0){
                 setSelectedQuestionID(null);
             }
-        })
+        });
 
-        socketRef.current.on('answer',async({answer,target})=>{
-            await connectionsRef.current[target].setRemoteDescription(new RTCSessionDescription(answer));            
-        })
+        socketRef.current.on("update-message",(message)=>{ //single chat message update 
+            setChats((lastChats)=>{
+                const index= lastChats.findIndex((chat)=>chat.id===message.id);
+
+                if(index !== -1){
+                    const newMsg={...lastChats[index]};
+                    newMsg.rate=message.rate;
+                    const newArr = [ 
+                        ...lastChats.slice(0,index),
+                        newMsg,
+                        ...lastChats.slice(index+1)
+                    ];
+                    console.log(newArr);
+
+                    return newArr;
+
+                }
+                return lastChats;
+            })
+        });
         
-        socketRef.current.on('offer',async({offer,target,username})=>{ //start of peer B
+        
+        socketRef.current.on("full-whiteboard-data",(dataArr)=>{ //recieve previously shared WB data
+            whiteboardDataRef.current=dataArr;
+            setIsPreviousWhiteboardRecieved(true);
+        });
+
+
+        socketRef.current.on('answer',async({answer,target})=>{ //webrtc answer
+            await connectionsRef.current[target].setRemoteDescription(new RTCSessionDescription(answer));            
+        });
+        
+        socketRef.current.on('offer',async({offer,target,username})=>{ //webrtc offer //start of peer B
             const sdp= new RTCSessionDescription(offer);
             if(!connectionsRef.current[target]){
                 connectionsRef.current[target]=createPeer(target,username);
@@ -692,54 +556,23 @@ export default function Room(props) {
             
         });
 
-        socketRef.current.on("ice-candidate", ({incoming,target})=> {
+        socketRef.current.on("ice-candidate", ({incoming,target})=> { //webrtc iceCandidate
             const candidate = new RTCIceCandidate(incoming);
             connectionsRef.current[target].addIceCandidate(candidate);
         });
 
-        socketRef.current.on("user-disconnected",userSocketID=>{
-            setStreams(lastVal=>{
+        socketRef.current.on("user-disconnected",userSocketID=>{ //when some user disconnected from room
+            setStreams(lastVal=>{ //update streams 
                 return lastVal.filter(stream=> stream.target !== userSocketID );
             });
-            setUsers((lastVal)=>{
+            setUsers((lastVal)=>{//update room users list
                 console.log(lastVal);
                 return lastVal.filter((user)=> user.connectionID !== userSocketID);
             });
-
-        })
+        });
         
-
     },[]);
     
-    useEffect(()=>{
-        socketRef.current.on("update-message",(message)=>{
-            // console.log('new message update');
-            setChats((lastChats)=>{
-                const index= lastChats.findIndex((chat)=>chat.id===message.id);
-
-                if(index !== -1){
-                    const newMsg={...lastChats[index]};
-                    newMsg.rate=message.rate;
-                    const newArr = [
-                        ...lastChats.slice(0,index),
-                        newMsg,
-                        ...lastChats.slice(index+1)
-                    ];
-                    console.log(newArr);
-
-                    return newArr;
-
-                }
-                return lastChats;
-
-                
-            })
-        });
-    },[]);
-
-
-
-
     return (
         <Paper square className="container">
             <div className="main">
@@ -749,7 +582,17 @@ export default function Room(props) {
                     <Button type="submit">Join</Button>
                 </form>
                 <div className="streamsContainer" style={{gridTemplateColumns:`repeat(${Math.floor(Math.log( (selfStream ? 1 : 0)+streams.length ===1 ? 1 : (selfStream ? 1 : 0)+streams.length ) /Math.log(2))+1}, minmax(0, 1fr))`}}>
+
+                    <div className={`fastplayContainer ${isShowFastplay ? "show" : "" }`}>
+                        <div className="title"> Whiteboard Replay from: <span>{fastplaySender}</span> </div>
+                        <IconButton className="closeIconContainer"  onClick={()=>{setIsShowFastplay(false)}} >
+                            <CloseIcon fontSize="large"/>
+                        </IconButton>
+                        <img alt="whiteboard" ref={fastplayImgRef}/>
+                    </div>
+                    
                     <div className="vidContainer self whiteboardContainer" style={{display:isCanvasSharing? "flex" : "none"}}>
+                        
                         <canvas width="560" height="360" className="vid" id="whiteboard" ref={whiteboardRef} ></canvas>
                         <div className="buttonsContainer">
                             <Tooltip title="Insert Image" arrow>
@@ -785,7 +628,7 @@ export default function Room(props) {
                             </Tooltip>
                             
                             <Tooltip title="Draw" arrow>
-                                <Button className={selectedCanvasButton===4 ? "selected" : ""} onClick={()=>{setSelectedCanvasButton(4);removeEvents(whiteboardRef.current);addDrawEvent(whiteboardRef.current); }}>
+                                <Button className={selectedCanvasButton===4 ? "selected" : ""} onClick={()=>{setSelectedCanvasButton(4);removeEvents(whiteboardRef.current);freehandDraw(whiteboardRef.current); }}>
                                     <GestureIcon />
                                 </Button>                            
                             </Tooltip>
@@ -823,6 +666,13 @@ export default function Room(props) {
                             )
                         })
                     } 
+
+
+                    <div className={["whiteboardImgContainer",isWhiteboardSharing ? "show" : ""].join(" ")}>
+                        <div className="title">{wbSender}</div>
+                        <img alt="whiteboard" ref={whiteboardImgRef} />
+                    </div>                    
+
                 </div>
                 
             </div>
@@ -956,6 +806,22 @@ export default function Room(props) {
                     (<Button onClick={clearChat}>
                         clear chat
                     </Button>)
+                }
+                {
+                    isPreviousWhiteboardRecieved &&
+                    (
+                        <Button onClick={fastplayImgs} >
+                            FastPlay
+                        </Button>
+                    )
+                }
+                {
+                    !isPreviousWhiteboardRecieved && 
+                    (
+                        <Button onClick={requestPrevWhiteboardData} >
+                            Request Fastplay
+                        </Button>
+                    )
                 }
                 {/* <IconButton onClick={()=>{props.setDarkTheme(!props.darkTheme)}} aria-label="theme">
                     { props.darkTheme ? <SunIcon/> : <MoonIcon /> } 
