@@ -2,12 +2,8 @@ import React,{useState} from 'react';
 import {BrowserRouter,Route} from "react-router-dom";
 import { createTheme, MuiThemeProvider } from "@material-ui/core";
 import Room from "./components/Room/Room";
-
-// import V2 from "./components/v2/v2";
+import {RecoilRoot} from "recoil";
 import "./App.scss";
-
-
-
 
 function App() {
     const [darkTheme,setDarkTheme] = useState(true);
@@ -38,7 +34,7 @@ function App() {
         overrides: {
             MuiPaper: {
                 elevation1: {
-                    background:darkTheme? "#21242b":null,
+                    background:darkTheme? "#262829":null,
                     "box-shadow":"0 0px 15px 0 rgba(0,0,0,.08)"
                 },
             },
@@ -46,10 +42,11 @@ function App() {
     }); 
     return (
     <MuiThemeProvider theme={theme}>
-        <BrowserRouter>
-            <Route exact path="/" component={()=><Room setDarkTheme={setDarkTheme} darkTheme={darkTheme}/>} />
-            {/* <Route exact path="/v2" component={V2} /> */}
-        </BrowserRouter>
+        <RecoilRoot>
+            <BrowserRouter>
+                <Route exact path="/" component={()=><Room setDarkTheme={setDarkTheme} darkTheme={darkTheme}/>} />
+            </BrowserRouter>
+        </RecoilRoot>
     </MuiThemeProvider>
     )
 }

@@ -1,9 +1,8 @@
-import React,{useEffect,useState,useRef,useCallback} from 'react';
+import React,{useEffect,useState,useRef,useCallback,memo} from 'react';
 import "./Room.scss";
 import {io} from "socket.io-client";
 import {makeStyles} from "@material-ui/core/styles";
 import { BlockPicker } from 'react-color';
-
 import {
     Paper,
     InputBase,
@@ -12,17 +11,18 @@ import {
     ListItem,
     ListItemText,
     Typography,
-    // ListItemSecondaryAction,
     IconButton,
     Button,
     Divider,
     InputAdornment,
     Tooltip,
     ClickAwayListener,
+    
+    
 } from "@material-ui/core";
 import {
     MicRounded as MicrophoneIcon,
-    SendRounded as MessageIcon,
+    SendRounded as SendIcon,
     DesktopMacRounded as DesktopIcon,
     DesktopAccessDisabled as DesktopDesableIcon,
     MicOffRounded as MicrophoneDisableIcon,
@@ -35,9 +35,18 @@ import {
     TextFields as TextIcon,
     InsertPhoto as ImageIcon,
     ColorLens as ColorIcon,
-    
+    BorderColorRounded as PenIcon,
+    CallEndRounded as HangupIcon,
+    ChatRounded as ChatIcon,
+    FastForward as FastForwardIcon,
+    ClearAll as ClearIcon
 } from "@material-ui/icons";
-
+import {
+    atom,
+    useRecoilState,
+    useRecoilValue,
+    useSetRecoilState
+} from "recoil";
 import ChatListItem from "../ChatListItem/ChatListItem";
 import {
     drawText,
@@ -65,37 +74,69 @@ const useStyle = makeStyles(theme=>{
             position:"fixed",
             width:"100%",
             bottom:"0",
-            background:"#111",
+            background:"#262829",
             height:"65px",
             display:"flex",
             alignItems:"center",
             justifyContent:"center",
-            
+            padding:"0 20px",
+            "& .items":{
+                flex:"1 1 0",
+                display:"flex",
+            },
+            "& .center":{
+                justifyContent:"center"
+            },
+            "& .right":{
+                justifyContent:"flex-end"
+            },
+
             "& button":{
                 color:"#fff",
-                margin:"0 10px",
-                background:"#333",
-
+                margin:"0 8px",
+                transition:"background .1s"
             },
-            "& .bgRed":{
-                background:"#f00",
+            "& .redBackground":{
+                background:"#B71C1C",
                 "&:hover":{
-                    filter:"brightness(.8)"
+                    background:"#dd2323"
                 }
             },
         },
+
+
+    }
+});
+const useStyle2=makeStyles(theme=>{
+    return {
         sidebar:{
             display:"flex",
             flexDirection:"column",
             position:"fixed",
             width:"420px",
             height:"calc(100vh - 65px)",
-            right:"0",
+            right:"-100%",
             top:"0",
+            visibility:"hidden",
+            transition:"visibility .2s,right .3s",
             
-            "& .form":{
-                display:"flex",
+            "&.show":{
+                right:"0",
+                visibility:"visible",
+                
             },
+            "& .inputContainer":{
+                display:"flex",
+                background:"#2B2E2F",
+                margin:"8px 8px",
+                borderRadius:"30px",
+                padding:"1px 0 1px 10px "
+            },
+            "& .btnsContainer":{
+                padding:"3px 8px",
+                display:"flex"
+            },
+            
             "& .input":{
                 flexGrow:"1",
                 padding:`5px ${theme.spacing(1)}px`,
@@ -104,17 +145,12 @@ const useStyle = makeStyles(theme=>{
                 overflowY:"scroll",
                 flexGrow:1
             },
-            "& .listHeader, & .form":{
-                background:"#21242B" //dark background 
-            }
+            "& .listHeader":{
+                background:"#262829" //dark background 
+            },
         },
-
     }
 })
-
-
-
-
 class Message{
     constructor(id,sender,text,date,role,rate,hardness,repliedID){
         this.id=id;
@@ -141,17 +177,19 @@ class User{
     }
 }
 
-const captureWebcam=()=> {
-    return new Promise((resolve,reject) => {
-        navigator.mediaDevices.getUserMedia({video:true,audio:true})
-        .then(currentStream=>{
-            resolve(currentStream);
-        })
-        .catch(() =>{
-            reject();
-        })
-    });
-}
+
+
+// const captureWebcam=()=> {
+//     return new Promise((resolve,reject) => {
+//         navigator.mediaDevices.getUserMedia({video:true,audio:true})
+//         .then(currentStream=>{
+//             resolve(currentStream);
+//         })
+//         .catch(() =>{
+//             reject();
+//         })
+//     });
+// }
 
 const toggleStreamTrack=(stream,type,enabled)=>{
     /* 
@@ -201,27 +239,255 @@ const captureScreen=()=>{
         
 }
 
+const Timer= memo(()=>{
+    const [timer,setTimer] = useState(new Date());
+    const updateTimer=()=>{
+        setTimer(new Date());
+    }
+    
+    useEffect(()=>{
+        const intervalID=window.setInterval(updateTimer,60000);
 
+        return ()=>{
+            window.clearInterval(intervalID);
+        }
+    },[]);
 
+    return(
+        <>
+            {   
+                `${timer.getHours()<10 ? "0" : ""}${ timer.getHours()>12 ? timer.getHours() - 12 : timer.getHours() }:${timer.getMinutes()<10 ? "0" : ""}${timer.getMinutes()}  ${timer.getHours()>12 ? "PM" : "AM"} `
+            }
+        </>
+    )
+})
 
+const socketState = atom({
+    key: 'socket', // unique ID (with respect to other atoms/selectors)
+    default: io(SOCKET_ENDPOINT),
+});
+
+const usersState=atom({
+    key:"users",
+    default:[]
+});
+
+const selfState = atom({
+    key:"self",
+    default:""
+})
+
+const Drawer=({showChat,isAdmin})=>{
+    const [chats,setChats] = useState([]);
+    const [isQuestion,setIsQuestion] = useState(false);
+    const [questionHardness,setQuestionHardness] = useState(5);
+    const [selectedQuestionID,setSelectedQuestionID] = useState(null);
+    const [messageInput,setMessageInput] = useState("");
+
+    const socket = useRecoilValue(socketState);
+    const users = useRecoilValue(usersState);
+    const selfS = useRecoilValue(selfState);
+
+    const messageInputRef = useRef(null);
+
+    
+    const classes = useStyle2();
+    
+    const selectQuestion=(questionID)=>{
+        setSelectedQuestionID(questionID);
+        messageInputRef.current.focus();
+    }
+    const rateMessage=(rate,messageID)=>{
+        socket.emit('rate-message',{
+            messageID:messageID,
+            rate:rate
+        })
+    } 
+    const sendMessages=(e)=>{
+        e.preventDefault();
+        if(messageInput.trim()===""){//if it was empty message 
+            return;
+        }
+        const data={
+            text:messageInput.trim(),
+        }
+        if(isAdmin){
+            if(isQuestion){
+                data.hardness=questionHardness;
+            }
+        }
+        else{
+            if(selectedQuestionID){
+                data.repliedID=selectedQuestionID;
+            }
+        }
+        socket.emit('chat', data);
+        setMessageInput("");
+        setSelectedQuestionID(null);
+    }
+
+    
+    useEffect(()=>{
+        socket.on('chat',({sender,text,date,id,role,rate,hardness,repliedID})=>{ // recieve new chat message
+            const msg=new Message(id,sender,text,date,role,rate,hardness,repliedID);
+            setChats(prev=>{
+                return [...prev,msg]
+            });
+            // messageContainerRef.current.scrollTop=10000;//scroll to button after new message
+            
+        });
+    
+        socket.on('full-chat-update',(chatsArr)=>{ //recieve previous chats 
+            const dateCorrectedArr= chatsArr.map((chat)=>new Message(chat.id,chat.sender,chat.text,chat.date,chat.role,chat.rate,chat.hardness));
+            setChats(()=>{
+                return dateCorrectedArr;
+            });
+            if(dateCorrectedArr.length ===0){
+                setSelectedQuestionID(null);
+            }
+        });
+    
+        socket.on("update-message",(message)=>{ //single chat message update 
+            setChats((lastChats)=>{
+                const index= lastChats.findIndex((chat)=>chat.id===message.id);
+    
+                if(index !== -1){
+                    const newMsg={...lastChats[index]};
+                    newMsg.rate=message.rate;
+                    const newArr = [ 
+                        ...lastChats.slice(0,index),
+                        newMsg,
+                        ...lastChats.slice(index+1)
+                    ];
+                    console.log(newArr);
+    
+                    return newArr;
+    
+                }
+                return lastChats;
+            })
+        });
+    },[])
+    
+    
+    return (
+        <Paper square className={[classes.sidebar,showChat ? "show" : ""].join(" ")}>
+            <div className="users">
+                <List 
+                    subheader={<ListSubheader component="div" className="listHeader">People {users.length > 0 ? `(${users.length+1})` : ""}</ListSubheader>}
+                    style={{maxHeight:"300px",overflowY:"scroll",}}
+                    
+                >
+                    {
+                        selfS.length >0 &&
+                        <ListItem>
+                            <ListItemText className="selfUserContainer" primary={<Typography component="div">{selfS} <span className="caption"> &nbsp; You</span> </Typography>} />
+                        </ListItem>
+                    }
+                    {
+                        users.map((user)=>{
+                            return (
+                                <ListItem key={user.connectionID}>
+                                    <ListItemText primary={user.username}/>
+                                </ListItem>
+                            )
+                        })
+                    }                       
+                </List>
+            </div>    
+            <div className="messages" >
+                <List 
+                    subheader={<ListSubheader className="listHeader" component="div">Messages {chats.length>0 ? `(${chats.length})` : ""}</ListSubheader>}
+                    disablePadding
+                >
+                    {
+                        chats.map((chat)=>{
+                            let role=chat.role;
+                            let onClick=null;
+                            let repliedText=chats.filter((elem)=>elem.id===chat.repliedID)[0]?.text;
+                            if(role==="question"){
+                                onClick=()=>{
+                                    selectQuestion(chat.id)
+                                }
+                            }
+                            const ratingOnChange=(value)=>{
+                                rateMessage(value,chat.id);
+                            }
+
+                            return (
+                                <ChatListItem key={chat.id} id={chat.id} rate={chat.rate} ratingOnChange={ratingOnChange} sender={chat.sender} repliedText={repliedText} hardness={chat.hardness} role={role} onClick={onClick} text={chat.text} date={chat.date} isAdmin={isAdmin} />
+                            )
+                        })
+                    }
+                </List>
+            </div>
+            {
+                    !isAdmin && selectedQuestionID &&
+                    (
+                        <div className="replyContainer">
+                            <span onClick={()=>{setSelectedQuestionID(null)}}><CloseIcon /></span>
+                            Question: &nbsp;
+                            {
+                                chats.filter((chat)=>chat.id===selectedQuestionID)[0]?.text
+                            }
+                        </div>
+                    )
+            }
+            <form className="form" onSubmit={sendMessages}>
+                <div className="inputContainer">
+                    <InputBase
+                        className="input"
+                        placeholder={selectedQuestionID ? "Reply..." :"Message..." }
+                        value={messageInput}
+                        onChange={(e)=>{setMessageInput(e.target.value)}}
+                        variant="outlined"
+                        inputProps={{
+                            ref:messageInputRef
+                        }}
+                        // multiline
+                        // maxRows={3}
+                    />
+                    <IconButton disabled={messageInput.length === 0} type="submit" aria-label="Send Message">
+                        <SendIcon/>
+                    </IconButton>
+                </div>
+            </form>
+            <div className="btnsContainer">
+
+                {
+                    isAdmin && 
+                    (
+                        <div className="msgMode">
+                            <Button onClick={()=>{setIsQuestion(true)}} >Question {isQuestion ? <TickIcon /> : ""} </Button>
+                            <Button onClick={()=>{setIsQuestion(false)}} >Message {!isQuestion ? <TickIcon /> : "" } </Button>
+                            {
+                                isQuestion &&
+                                (<InputBase 
+                                    type="number" 
+                                    startAdornment={<InputAdornment position="start" component="label">Hardness: </InputAdornment>}
+                                    inputProps={{min:0,max:10}}
+                                    onChange={(e)=>{setQuestionHardness(e.target.value)}}
+                                    value={questionHardness}
+                                />)
+                            }
+                        </div>
+                    )
+                }
+            </div>
+            
+        </Paper>
+    );
+}
 
 export default function Room(props) {
     const [room,setRoom] = useState("room1");
-    const [messageInput,setMessageInput] = useState("");
     const [usernameInput,setUsernameInput] = useState("");
     const [desktopIsSharing,setDesktopIsSharing]=useState(false);
     const [micIsSharing,setMicIsSharing]=useState(false);
     const [isCanvasSharing,setIsCanvasSharing]=useState(false);
-    const [chats,setChats] = useState([]);
-    const [users,setUsers] = useState([]);
-    const [isJoinedRoom,setIsJoinedRoom] = useState(false);
     const [streams,setStreams]= useState([]);
     const [selfStream,setSelfStream] = useState(null);
-    const [selfUsernameInRoom,setSelfUsernameInRoom] = useState(null);
     const [isAdmin,setIsAdmin]=useState(false);
-    const [isQuestion,setIsQuestion] = useState(false);
-    const [questionHardness,setQuestionHardness] = useState(5);
-    const [selectedQuestionID,setSelectedQuestionID] = useState(null);
     const [selectedCanvasButton,setSelectedCanvasButton] = useState(4);
     const [pickedColor,setPickedColor]= useState(colorsArr[0]);
     const [showColorPicker,setShowColorPicker]=useState(false);
@@ -230,13 +496,12 @@ export default function Room(props) {
     const [fastplaySender,setFastplaySender] = useState("");
     const [wbSender,setWbSender]=useState("");
     const [isWhiteboardSharing,setIsWhiteboardSharing] = useState(false);
+    const [roomName,setRoomName] = useState("")
+    const [showChat,setShowChat] = useState(true);
     
-    const socketRef=useRef(null);
     const connectionsRef=useRef({});
     const whiteboardRef=useRef(null);
     const fileInputRef=useRef(null);
-    const messageInputRef = useRef(null);
-    const messageContainerRef= useRef(null);
     const whiteboardImgRef= useRef(null);
     const fastplayImgRef= useRef(null);
     const whiteboardDataRef=useRef([]);
@@ -244,11 +509,14 @@ export default function Room(props) {
     
     const classes=useStyle();
 
+    const socket = useRecoilValue(socketState);
+    const setUsers = useSetRecoilState(usersState);
+    const setSelfS = useSetRecoilState(selfState);
     
     const handleNegotiationNeeded=async(pc)=> {
         const offer=await pc.createOffer();
         await pc.setLocalDescription(offer);
-        socketRef.current.emit('offer',{
+        socket.emit('offer',{
             offer:pc.localDescription,
             target:pc.target
         });
@@ -258,7 +526,7 @@ export default function Room(props) {
         
         setStreams((last)=>{
             const searchedStream = last.filter(val=>val.target === target)[0];
-            
+
             if(searchedStream){ //if track already existed
                 const newTrack = e.streams[0].getAudioTracks()[0] || e.streams[0].getVideoTracks()[0];
                 searchedStream.stream.addTrack(newTrack); //add recieved track to last stream from user
@@ -273,7 +541,7 @@ export default function Room(props) {
     },[]);
     const handleICECandidateEvent=useCallback((e,pc)=>{
         if(e.candidate){
-            socketRef.current.emit("ice-candidate", {
+            socket.emit("ice-candidate", {
                 target:pc.target,
                 candidate:e.candidate
             });
@@ -368,7 +636,7 @@ export default function Room(props) {
     }
 
     const requestPrevWhiteboardData=()=>{
-        socketRef.current.emit("full-whiteboard-data");
+        socket.emit("full-whiteboard-data");
     }
 
     const fastplayImgs=async()=>{
@@ -393,48 +661,37 @@ export default function Room(props) {
         }
         isFastplayPlaying.current=false; //release fastplay button action
     }
-    
-    // useEffect(()=>{
-    //     if(isAdmin){
-    //         window.setTimeout(() => {
-    //             shareWhiteboard();
-    //         }, 1000);
-    //     }
-    // },[isAdmin]);
 
     useEffect(()=>{
         if(isCanvasSharing){
             const quality = .5;
             window.setInterval(()=>{
                 const base64ImageData = whiteboardRef.current.toDataURL("image/png",quality);
-                socketRef.current.emit("whiteboard-data",{base64ImageData:base64ImageData})
+                socket.emit("whiteboard-data",{base64ImageData:base64ImageData})
             },1000);
         }
     },[isCanvasSharing]);
 
     
-    const shareWebcam = async()=>{
-        const tempStream = await captureWebcam();
+    // const shareWebcam = async()=>{
+    //     const tempStream = await captureWebcam();
         
-        for(const key in connectionsRef.current){
-            tempStream.getTracks().forEach((track)=>{
-                connectionsRef.current[key].addTrack(track,tempStream);
-            });
-        }
-        setSelfStream(tempStream);
-    }
+    //     for(const key in connectionsRef.current){
+    //         tempStream.getTracks().forEach((track)=>{
+    //             connectionsRef.current[key].addTrack(track,tempStream);
+    //         });
+    //     }
+    //     setSelfStream(tempStream);
+    // }
     
-    const selectQuestion=(questionID)=>{
-        setSelectedQuestionID(questionID);
-        messageInputRef.current.focus();
-    } 
+
     const handleSubmit=(e)=>{
         e.preventDefault();
-        socketRef.current.emit('join-room',{
+        socket.emit('join-room',{
             username:usernameInput,
             roomID:room
         });
-        setIsJoinedRoom(true);
+        // setIsJoinedRoom(true);
     }
 
     const handleInput=(e,setter)=>{
@@ -456,54 +713,27 @@ export default function Room(props) {
         }
     }
 
-    const sendMessages=(e)=>{
-        e.preventDefault();
-        if(messageInput.trim()===""){//if it was empty message 
-            return;
-        }
-        const data={
-            text:messageInput.trim(),
-        }
-        if(isAdmin){
-            if(isQuestion){
-                data.hardness=questionHardness;
-            }
-        }
-        else{
-            if(selectedQuestionID){
-                data.repliedID=selectedQuestionID;
-            }
-        }
-        socketRef.current.emit('chat', data);
-        setMessageInput("");
-        setSelectedQuestionID(null);
-    }
 
-    const rateMessage=(rate,messageID)=>{
-        socketRef.current.emit('rate-message',{
-            messageID:messageID,
-            rate:rate
-        })
-    }
+
+
     
 
     const clearChat = ()=>{
-        socketRef.current.emit('clear-chat');
+        socket.emit('clear-chat');
     }
     
     useEffect(()=>{
-        socketRef.current=io(SOCKET_ENDPOINT);
-        socketRef.current.on('connect',()=>{
+        socket.on('connect',()=>{
             console.log('socket connection established');
         }); 
         //TODO: reset all variables if socket disconnected (if needed)
         return()=>{
-            socketRef.current.close();
+            socket.close();
         }
     },[]);
 
     useEffect(()=>{
-        socketRef.current.on('new-user-joined',async({target,username})=>{ //start of peer A
+        socket.on('new-user-joined',async({target,username})=>{ //start of peer A
             const newUser = new User(username,target);
             connectionsRef.current[target] = createPeer(target,username);
             setUsers((lastVal)=>{
@@ -518,7 +748,7 @@ export default function Room(props) {
             else{
                 const offer=await connectionsRef.current[target].createOffer();
                 await connectionsRef.current[target].setLocalDescription(offer);
-                socketRef.current.emit('offer',{
+                socket.emit('offer',{
                     offer:connectionsRef.current[target].localDescription,
                     target:connectionsRef.current[target].target
                 });
@@ -529,7 +759,7 @@ export default function Room(props) {
 
     useEffect(()=>{
         
-        socketRef.current.on("whiteboard-data",(data)=>{
+        socket.on("whiteboard-data",(data)=>{
             if(isPreviousWhiteboardRecieved){ //if previous whiteboard data recieved then you save current whiteboard sharing data
                 whiteboardDataRef.current.push(data);
             }
@@ -541,65 +771,28 @@ export default function Room(props) {
     
     useEffect(()=>{
         
-        socketRef.current.on('self-info',(data)=>{
+        socket.on('self-info',(data)=>{
             if(data.isAdmin){
                 setIsAdmin(true);
             }
-            setSelfUsernameInRoom(data.username);
+            setSelfS(data.username);
+            setRoomName(data.roomName);
         });
 
-        socketRef.current.on('chat',({sender,text,date,id,role,rate,hardness,repliedID})=>{ // recieve new chat message
-            const msg=new Message(id,sender,text,date,role,rate,hardness,repliedID);
-            setChats(prev=>{
-                return [...prev,msg]
-            });
-            messageContainerRef.current.scrollTop=10000;//scroll to button after new message
-            
-        });
 
-        socketRef.current.on('full-chat-update',(chatsArr)=>{ //recieve previous chats 
-            const dateCorrectedArr= chatsArr.map((chat)=>new Message(chat.id,chat.sender,chat.text,chat.date,chat.role,chat.rate,chat.hardness));
-            setChats(()=>{
-                return dateCorrectedArr;
-            });
-            if(dateCorrectedArr.length ===0){
-                setSelectedQuestionID(null);
-            }
-        });
-
-        socketRef.current.on("update-message",(message)=>{ //single chat message update 
-            setChats((lastChats)=>{
-                const index= lastChats.findIndex((chat)=>chat.id===message.id);
-
-                if(index !== -1){
-                    const newMsg={...lastChats[index]};
-                    newMsg.rate=message.rate;
-                    const newArr = [ 
-                        ...lastChats.slice(0,index),
-                        newMsg,
-                        ...lastChats.slice(index+1)
-                    ];
-                    console.log(newArr);
-
-                    return newArr;
-
-                }
-                return lastChats;
-            })
-        });
         
         
-        socketRef.current.on("full-whiteboard-data",(dataArr)=>{ //recieve previously shared WB data
+        socket.on("full-whiteboard-data",(dataArr)=>{ //recieve previously shared WB data
             whiteboardDataRef.current=dataArr;
             setIsPreviousWhiteboardRecieved(true);
         });
 
 
-        socketRef.current.on('answer',async({answer,target})=>{ //webrtc answer
+        socket.on('answer',async({answer,target})=>{ //webrtc answer
             await connectionsRef.current[target].setRemoteDescription(new RTCSessionDescription(answer));            
         });
         
-        socketRef.current.on('offer',async({offer,target,username})=>{ //webrtc offer //start of peer B
+        socket.on('offer',async({offer,target,username})=>{ //webrtc offer //start of peer B
             const sdp= new RTCSessionDescription(offer);
             if(!connectionsRef.current[target]){
                 connectionsRef.current[target]=createPeer(target,username);
@@ -612,19 +805,19 @@ export default function Room(props) {
             await connectionsRef.current[target].setRemoteDescription(sdp);
             const answer = await connectionsRef.current[target].createAnswer();
             await connectionsRef.current[target].setLocalDescription(answer);
-            socketRef.current.emit('answer',{
+            socket.emit('answer',{
                 answer:answer,
                 target:target
             });
             
         });
 
-        socketRef.current.on("ice-candidate", ({incoming,target})=> { //webrtc iceCandidate
+        socket.on("ice-candidate", ({incoming,target})=> { //webrtc iceCandidate
             const candidate = new RTCIceCandidate(incoming);
             connectionsRef.current[target].addIceCandidate(candidate);
         });
 
-        socketRef.current.on("user-disconnected",userSocketID=>{ //when some user disconnected from room
+        socket.on("user-disconnected",userSocketID=>{ //when some user disconnected from room
             setStreams(lastVal=>{ //update streams 
                 return lastVal.filter(stream=> stream.target !== userSocketID );
             });
@@ -636,6 +829,7 @@ export default function Room(props) {
         
     },[]);
 
+    
     return (
         <Paper square className="container">
             <div className="main">
@@ -644,8 +838,7 @@ export default function Room(props) {
                     <InputBase value={room} onChange={(e)=>{handleInput(e,setRoom)}} required placeholder="room..."/>
                     <Button type="submit">Join</Button>
                 </form>
-                <div className="streamsContainer" style={{gridTemplateColumns:`repeat(${Math.floor(Math.log( (selfStream ? 1 : 0)+streams.length ===1 ? 1 : (selfStream ? 1 : 0)+streams.length ) /Math.log(2))+1}, minmax(0, 1fr))`}}>
-
+                <div className={["streamsContainer",!showChat ? "expand" : ""].join(" ")} style={{gridTemplateColumns:`repeat(${Math.floor(Math.log( (selfStream ? 1 : 0)+streams.length ===1 ? 1 : (selfStream ? 1 : 0)+streams.length ) /Math.log(2))+1}, minmax(0, 1fr))`}}>
                     <div className={`fastplayContainer ${isShowFastplay ? "show" : "" }`}>
                         <div className="title"> Whiteboard Replay from: <span>{fastplaySender}</span> </div>
                         <IconButton className="closeIconContainer"  onClick={()=>{setIsShowFastplay(false)}} >
@@ -739,205 +932,100 @@ export default function Room(props) {
                 </div>
                 
             </div>
-            <Paper square className={classes.sidebar}>
-                <div className="users">
-                    <List 
-                        subheader={<ListSubheader component="div" className="listHeader">Users {users.length > 0 ? `(${users.length+1})` : ""}</ListSubheader>}
-                        style={{maxHeight:"300px",overflowY:"scroll",}}
+            <Drawer showChat={showChat} isAdmin={isAdmin} />
                         
-                    >
-                        {
-                            isJoinedRoom && 
-                            <ListItem>
-                                <ListItemText className="selfUserContainer" primary={<Typography component="div">{selfUsernameInRoom} <span className="caption"> &nbsp; You</span> </Typography>} />
-                            </ListItem>
-                        }
-                        {
-                            users.map((user)=>{
-                                return (
-                                    <ListItem key={user.connectionID}>
-                                        <ListItemText primary={user.username}/>
-                                    </ListItem>
-                                )
-                            })
-                        }                       
-                    </List>
-                </div>    
-                <Divider />            
-                <div className="messages" ref={messageContainerRef}>
-                    <List 
-                        subheader={<ListSubheader className="listHeader" component="div">CHAT {chats.length>0 ? `(${chats.length})` : ""}</ListSubheader>}
-                        disablePadding
-                    >
-                        {
-                            chats.map((chat)=>{
-                                let role=chat.role;
-                                let onClick=null;
-                                let repliedText=chats.filter((elem)=>elem.id===chat.repliedID)[0]?.text;
-                                if(role==="question"){
-                                    onClick=()=>{
-                                        selectQuestion(chat.id)
-                                    }
-                                }
-                                const ratingOnChange=(value)=>{
-                                    rateMessage(value,chat.id);
-                                }
-
-                                return (
-                                    <ChatListItem key={chat.id} id={chat.id} rate={chat.rate} ratingOnChange={ratingOnChange} sender={chat.sender} repliedText={repliedText} hardness={chat.hardness} role={role} onClick={onClick} text={chat.text} date={chat.date} isAdmin={isAdmin} />
-                                )
-                            })
-                        }
-                    </List>
-                </div>
-                <Divider />
-                {
-                    !isAdmin && selectedQuestionID &&
-                    (
-                        <div className="replyContainer">
-                            <span onClick={()=>{setSelectedQuestionID(null)}}><CloseIcon /></span>
-                            Question: &nbsp;
-                            {
-                                chats.filter((chat)=>chat.id===selectedQuestionID)[0]?.text
-                            }
-                        </div>
-                    )
-                }
-                {
-                    isAdmin && 
-                    (
-                        <div className="msgMode">
-                            <Button variant="outlined" onClick={()=>{setIsQuestion(true)}} >Question {isQuestion ? <TickIcon /> : ""} </Button>
-                            <Button variant="outlined" onClick={()=>{setIsQuestion(false)}} >Message {!isQuestion ? <TickIcon /> : "" } </Button>
-                            {
-                                isQuestion &&
-                                (<InputBase 
-                                    type="number" 
-                                    startAdornment={<InputAdornment position="start" component="label">Hardness: </InputAdornment>}
-                                    inputProps={{min:0,max:10}}
-                                    onChange={(e)=>{setQuestionHardness(e.target.value)}}
-                                    value={questionHardness}
-                                />)
-                            }
-                        </div>
-                    )
-                }
-                <form className="form" onSubmit={sendMessages}>
-                    <InputBase
-                        className="input"
-                        placeholder={selectedQuestionID ? "Reply..." :"Message..." }
-                        value={messageInput}
-                        onChange={(e)=>{setMessageInput(e.target.value)}}
-                        variant="outlined"
-                        inputProps={{
-                            ref:messageInputRef
-                        }}
-                    />
-                    <IconButton type="submit" aria-label="Send Message">
-                        <MessageIcon/>
-                    </IconButton>
-                </form>
-            </Paper>
             <Paper
                 className={classes.nav}
             >
-                <IconButton 
-                    onClick={()=>{
-                        if(!selfStream){ // no video track no mic track
-                            console.log('self stream was empty');
-                            shareMicrophone();
-                        }
-                        else{
-                            const hasAudio = selfStream.getAudioTracks().length !==0;
-
-                            if(hasAudio){
-                                console.log('has audio track so toggle audio')
-                                toggleStreamTrack(selfStream,'audio',!micIsSharing);
-                                setMicIsSharing(!micIsSharing)
-                            }
-                            else{
+                <div className="items">
+                    <Timer />
+                    | {roomName}
+                </div>
+                <div className="items center">
+                    <IconButton 
+                        onClick={()=>{
+                            if(!selfStream){ // no video track no mic track
+                                console.log('self stream was empty');
                                 shareMicrophone();
                             }
-                        }
-                    }}
-                    aria-label="Share Microphone"
-                >
-                    { micIsSharing ? <MicrophoneIcon /> : <MicrophoneDisableIcon/> }
-                </IconButton>                
-                
-                <IconButton 
-                    onClick={()=>{
-                        if(!selfStream){ // no video track no mic track
-                            shareDesktop();
-                        }
-                        else{
-                            const hasVideo = selfStream.getVideoTracks().length !==0;
-
-                            if(hasVideo){
-                                toggleStreamTrack(selfStream,'video',!desktopIsSharing);
-                                setDesktopIsSharing(!desktopIsSharing)
-                            }
                             else{
+                                const hasAudio = selfStream.getAudioTracks().length !==0;
+
+                                if(hasAudio){
+                                    console.log('has audio track so toggle audio')
+                                    toggleStreamTrack(selfStream,'audio',!micIsSharing);
+                                    setMicIsSharing(!micIsSharing)
+                                }
+                                else{
+                                    shareMicrophone();
+                                }
+                            }
+                        }}
+                        aria-label="Share Microphone"
+                        className={!micIsSharing ? "redBackground" : ""}
+                    >
+                        { micIsSharing ? <MicrophoneIcon /> : <MicrophoneDisableIcon/> }
+                    </IconButton>                
+                    
+                    <IconButton 
+                        onClick={()=>{
+                            if(!selfStream){ // no video track no mic track
                                 shareDesktop();
                             }
+                            else{
+                                const hasVideo = selfStream.getVideoTracks().length !==0;
 
-                            
-                            
-                            
-                            
-                            // if(hasAudio){
-                            // }
-                            // if(!hasVideo && hasAudio){ //only has audio track
-                            //     console.log('only has video track so audio will addtrack');
-                            // }
-                            
-                        }
-                    }}
-                    aria-label="Share Desktop" 
-                >
-                    {desktopIsSharing ? <DesktopIcon /> : <DesktopDesableIcon/>}
-                </IconButton>                    
-                
-                {/* <Button onClick={shareWebcam}>
-                    Share webcam
-                </Button> */}
-                <Button onClick={shareWhiteboard}>
-                    Create Whiteboard
-                </Button>
-                {
-                    isAdmin &&
-                    (<Button onClick={clearChat}>
-                        clear chat
-                    </Button>)
-                }
-                {
-                    isPreviousWhiteboardRecieved &&
-                    (
-                        <Button onClick={fastplayImgs} >
-                            FastPlay
-                        </Button>
-                    )
-                }
-                {
-                    !isPreviousWhiteboardRecieved && 
-                    (
-                        <Button onClick={requestPrevWhiteboardData} >
-                            Request Fastplay
-                        </Button>
-                    )
-                }
-                <Button onClick={()=>{
-                    console.log(connectionsRef.current)
-                }}>
-                    show connections
-                </Button>
+                                if(hasVideo){
+                                    toggleStreamTrack(selfStream,'video',!desktopIsSharing);
+                                    setDesktopIsSharing(!desktopIsSharing)
+                                }
+                                else{
+                                    shareDesktop();
+                                }
+                            }
+                        }}
+                        aria-label="Share Desktop" 
+                        className={!desktopIsSharing ? "redBackground" : ""}
+                    >
+                        {desktopIsSharing ? <DesktopIcon /> : <DesktopDesableIcon/>}
+                    </IconButton>                    
+                    
+                    <IconButton onClick={shareWhiteboard}>
+                        <PenIcon />
+                    </IconButton>
+                    {
+                        isPreviousWhiteboardRecieved ?
+                        (
+                            <IconButton onClick={fastplayImgs} >
+                                <FastForwardIcon />
+                            </IconButton>
+                        ) :
+                        (
+                            <IconButton onClick={requestPrevWhiteboardData} >
+                                <FastForwardIcon />!
+                            </IconButton>
+                        )
+                    }
+
+                    <IconButton aria-label="hangup" className="redBackground"  >
+                        <HangupIcon />
+                    </IconButton>
+                </div>
+                <div className="items right">
+                    {
+                        isAdmin &&
+                        (<IconButton onClick={clearChat}>
+                            <ClearIcon />
+                        </IconButton>)
+                    }
+                    <IconButton aria-label="open chats" onClick={()=>{setShowChat(last=>!last)}} >
+                        <ChatIcon  />
+                    </IconButton>
+                </div>
+
                 {/* <IconButton onClick={()=>{props.setDarkTheme(!props.darkTheme)}} aria-label="theme">
                     { props.darkTheme ? <SunIcon/> : <MoonIcon /> } 
                 </IconButton>                */}
-
-                {/* <IconButton ref={hangupBtnRef} aria-label="hangup" className="bgRed" >
-                    <HangupIcon />
-                </IconButton> */}
             </Paper>
 
         </Paper>

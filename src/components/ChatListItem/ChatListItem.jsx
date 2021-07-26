@@ -67,7 +67,8 @@ const ChatListItem = ({id,role,onClick,text,date,sender,hardness,repliedText,isA
                 }/>
             <ListItemSecondaryAction>
                 <div className="status">
-                    {date.getHours() + ":" + date.getMinutes()}
+                    {`${date.getHours()<10 ? "0" : ""}${date.getHours() }:${date.getMinutes()<10 ? "0" : ""}${date.getMinutes()}`}
+
                 </div>
             </ListItemSecondaryAction>
         </ListItem>

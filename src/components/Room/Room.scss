@@ -1,11 +1,12 @@
 .formContainer {
     // background-color: #000;
     position: absolute;
-    background-color: #333;
+    background-color: #222;
     z-index: 999;
     top: 0;
     left: 0;
 }
+
 
 * {
     box-sizing: border-box;
@@ -14,7 +15,6 @@
 .streamsContainer {
     width: calc(100vw - 420px);
     height: calc(100vh - 60px);
-    // width: calc(100vw);
     overflow: hidden;
     position: relative;
 
@@ -22,8 +22,11 @@
     grid-template-rows: auto;
     grid-template-columns: auto;
     gap: 10px;
-
-
+    transition: width .4s;
+    
+    &.expand{
+        width: 100%;        
+    }
 
     .vidContainer {
         display: flex;
@@ -59,7 +62,7 @@
 //     border: 1px solid #f00;
 //     width: 400px;
 //     height: 400px;
-    border: 1px solid black;
+    border: 1px solid #000;
     width: 560px;
     height: 360px;
 }
@@ -187,7 +190,6 @@
         right: 10px;
         background-color: #444 !important;
         transition: transform .2s, background .2s;
-        
         &:hover{
             transform: scale(1.07);
             background-color: #333 !important;
