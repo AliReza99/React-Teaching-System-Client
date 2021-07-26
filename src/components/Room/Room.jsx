@@ -17,7 +17,12 @@ import {
     Tooltip,
     ClickAwayListener,
     Divider,
+    // Menu,
+    // MenuItem,
 } from "@material-ui/core";
+
+
+
 import {
     MicRounded as MicrophoneIcon,
     SendRounded as SendIcon,
@@ -38,7 +43,11 @@ import {
     ChatRounded as ChatIcon,
     FastForwardRounded as FastForwardIcon,
     ClearAll as ClearIcon,
-    ReplyRounded as ReplyIcon
+    ReplyRounded as ReplyIcon,
+    MoreVert as MoreIcon,
+    PictureAsPdfRounded as PDFIcon,
+    NavigateNextRounded as NextArrow,
+
 } from "@material-ui/icons";
 import {
     useRecoilValue,
@@ -495,6 +504,7 @@ export default function Room(props) {
     const [isWhiteboardSharing,setIsWhiteboardSharing] = useState(false);
     const [roomName,setRoomName] = useState("")
     const [showChat,setShowChat] = useState(true);
+    const [showMore,setShowMore] = useState(false);
     
     const connectionsRef=useRef({});
     const whiteboardRef=useRef(null);
@@ -503,6 +513,7 @@ export default function Room(props) {
     const fastplayImgRef= useRef(null);
     const whiteboardDataRef=useRef([]);
     const isFastplayPlaying= useRef(false);
+    const PdfInputRef= useRef(false);
     
     const classes=useStyle();
 
@@ -632,6 +643,13 @@ export default function Room(props) {
         setIsCanvasSharing(true);
     }
 
+    // useEffect(()=>{
+    //     // if(self.isAdmin){
+    //         shareWhiteboard();
+
+    //     // }
+    // },[]);
+
     const requestPrevWhiteboardData=()=>{
         socket.emit("full-whiteboard-data");
     }
@@ -711,24 +729,79 @@ export default function Room(props) {
     }
 
 
-
-
+    const [pdf,setPdf]=useState(null);
+    const [pdfTotalPages,setPdfTotalPages] = useState(0);
+    const [pageNum,setPageNum] = useState(null);
     
+    const handlePdfChange =()=>{
+        const pdfjsLib = window['pdfjs-dist/build/pdf']
+        // pdfjsLib.GlobalWorkerOptions.workerSrc = '//mozilla.github.io/pdf.js/build/pdf.worker.js';
+        if(!pdfjsLib){
+            console.log('pdfjsLib not supported');
+            return
+        }
+
+        const file=PdfInputRef.current.files[0];
+        if(file.type !== "application/pdf"){
+            console.error(file.name, "is not a pdf file.")
+            return;
+        }
+        const fileReader = new FileReader(); 
+
+        fileReader.onload = function() {
+            const typedarray = new Uint8Array(this.result);
+
+            pdfjsLib.getDocument(typedarray).promise.then(pdfDocument => {
+                // console.log("the pdf has ",pdfDocument.numPages, "page(s).")
+                // pdfRef.current=pdf;
+                // pdfTotalPages.current = pdf.numPages;
+                setPdf(pdfDocument)
+                setPdfTotalPages(pdfDocument.numPages);
+                setPageNum(1);
+            });
+            
+            
+
+        };
+        fileReader.readAsArrayBuffer(file);
+    }
+
+    useEffect(()=>{
+        if(pdf){
+            pdf.getPage(pageNum).then((page)=> {
+                let viewport = page.getViewport({scale:1});
+                
+                // const width=560;
+                // const scale = width / viewport.width;
+                // viewport = page.getViewport({scale:scale});
+
+
+                whiteboardRef.current.height = viewport.height;
+                whiteboardRef.current.width = viewport.width;
+
+                const renderContext = {
+                    canvasContext: whiteboardRef.current.getContext("2d"),
+                    viewport: viewport
+                    };
+                page.render(renderContext);
+            })
+        }
+    },[pageNum,pdf]);
+
+    const nextPage=()=>{
+        if(pageNum < pdfTotalPages){
+            setPageNum(pageNum+1);
+        }
+    }
+    const prevPage=()=>{
+        if(pageNum > 1){
+            setPageNum(pageNum - 1);
+        }
+    }
 
     const clearChat = ()=>{
         socket.emit('clear-chat');
     }
-    
-    // useEffect(()=>{
-    //     socket.on('connect',()=>{
-    //         console.log('socket connection established');
-    //     }); 
-    //     //TODO: reset all variables if socket disconnected (if needed)
-    //     return()=>{
-    //         socket.close();
-    //     }
-    // },[]);
-
     
     useEffect(()=>{
         socket.on('connect',()=>{
@@ -838,7 +911,7 @@ export default function Room(props) {
         });
     },[isPreviousWhiteboardRecieved]);
     
-    
+
 
     return (
         <Paper square className="container">
@@ -861,13 +934,37 @@ export default function Room(props) {
                         
                         <canvas width="560" height="360" className="vid" id="whiteboard" ref={whiteboardRef} ></canvas>
                         <div className="buttonsContainer">
-                            <Tooltip title="Insert Image" arrow>
+                            <Tooltip title="Add Image" arrow>
                                 <Button component="label">
                                     <ImageIcon />
                                     <input type="file" onChange={handleFileChange} ref={fileInputRef} hidden/>
                                 </Button>
+                            </Tooltip>                           
+
+                            
+                            <Tooltip title="Add PDF" arrow>
+                                <Button component="label">
+                                    <PDFIcon />
+                                    <input type="file" onChange={handlePdfChange} ref={PdfInputRef} hidden/>
+                                </Button>
                             </Tooltip>
 
+                            {
+                                pdf &&
+                                <>
+                                    <Tooltip title="Previous Page" arrow>
+                                        <Button onClick={prevPage} disabled={pageNum === 1} >
+                                            <NextArrow style={{transform:"rotate(180deg)"}} />
+                                        </Button>
+                                    </Tooltip>
+
+                                    <Tooltip title="Next Page" arrow>
+                                        <Button onClick={nextPage} disabled={pageNum === pdfTotalPages}>
+                                            <NextArrow />
+                                        </Button>
+                                    </Tooltip>
+                                </>
+                            }
                             <Tooltip title="Line" arrow>
                                 <Button className={selectedCanvasButton===0 ? "selected" : ""} onClick={()=>{setSelectedCanvasButton(0);removeEvents(whiteboardRef.current);drawLine(whiteboardRef.current); }}>
                                     <LineIcon />
@@ -1017,10 +1114,26 @@ export default function Room(props) {
                         )
                     }
 
+                    {
+                        self.isAdmin &&
+                        <ClickAwayListener onClickAway={()=>setShowMore(false)}>
+                            <div className="moreContainer">
+                                <IconButton onClick={()=>{setShowMore(last=>!last)}}>
+                                    <MoreIcon />
+                                </IconButton>
+                                    <List className={["moreList",showMore ? "show" : ""].join(" ")} >
+                                        <ListItem button className="listItem">Export Room Chats</ListItem>
+                                        <ListItem button className="listItem">Export Users Activity</ListItem>
+                                    </List>
+                            </div>
+                        </ClickAwayListener>
+                    }
+
                     <IconButton aria-label="hangup" className="redBackground"  >
                         <HangupIcon />
                     </IconButton>
                 </div>
+
                 <div className="items right">
                     {
                         self.isAdmin &&

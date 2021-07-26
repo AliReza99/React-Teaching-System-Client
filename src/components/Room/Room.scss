@@ -63,15 +63,16 @@
 //     width: 400px;
 //     height: 400px;
     border: 1px solid #000;
-    width: 560px;
-    height: 360px;
+    // width: 560px;
+    // height: 360px;
 }
 .whiteboardContainer{
     position: relative;
     .buttonsContainer{
         display: flex;
         position: absolute;
-        top: 360px;
+        // top: 360px;
+        bottom: 0;
         left: 0;
         background-color: #333;
     }
@@ -194,6 +195,34 @@
         &:hover{
             transform: scale(1.07);
             background-color: #333 !important;
+        }
+    }
+}
+
+.moreContainer{
+    position: relative;
+    display: flex;
+    .moreList{
+        background: hsl(210, 3%, 13%);
+        border-radius: 8px;
+        overflow: hidden;
+        position: absolute;
+        bottom: calc(100% - 15px );
+        opacity: 0;
+        display: flex;
+        flex-direction: column;
+        visibility: hidden;
+        transition: visibility .2s , bottom .2s,opacity .2s;
+        
+        
+        &.show{
+            visibility: visible;
+            bottom: calc(100% + 10px );
+            opacity: 1;
+        }
+        .listItem{
+            white-space: nowrap;
+            padding: 12px 15px;
         }
     }
 }
