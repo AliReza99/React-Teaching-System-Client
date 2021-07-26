@@ -1,6 +1,6 @@
 import React,{useEffect,useState,useRef,useCallback,memo} from 'react';
 import "./Room.scss";
-import {io} from "socket.io-client";
+// import {io} from "socket.io-client";
 import {makeStyles} from "@material-ui/core/styles";
 import { BlockPicker } from 'react-color';
 import {
@@ -13,12 +13,10 @@ import {
     Typography,
     IconButton,
     Button,
-    Divider,
     InputAdornment,
     Tooltip,
     ClickAwayListener,
-    
-    
+    Divider,
 } from "@material-ui/core";
 import {
     MicRounded as MicrophoneIcon,
@@ -38,15 +36,16 @@ import {
     BorderColorRounded as PenIcon,
     CallEndRounded as HangupIcon,
     ChatRounded as ChatIcon,
-    FastForward as FastForwardIcon,
-    ClearAll as ClearIcon
+    FastForwardRounded as FastForwardIcon,
+    ClearAll as ClearIcon,
+    ReplyRounded as ReplyIcon
 } from "@material-ui/icons";
 import {
-    atom,
-    useRecoilState,
     useRecoilValue,
-    useSetRecoilState
+    useSetRecoilState,
+    useRecoilState
 } from "recoil";
+
 import ChatListItem from "../ChatListItem/ChatListItem";
 import {
     drawText,
@@ -58,7 +57,12 @@ import {
     setCanvasColors
 } from "../../scripts/canvasDraw";
 
-const SOCKET_ENDPOINT="http://localhost:5001"; //server endpoint
+import {
+    socketState,
+    usersState,
+    selfState
+} from "./Atoms";
+
 const colorsArr=["#000000","#E53935","#CFD8DC","#8E24AA","#303F9F","#0097A7","#FFEB3B","#76FF03","#4FC3F7","#CE93D8"]; // colors for canvas draw
 
 const removeEvents=(element)=>{
@@ -74,12 +78,12 @@ const useStyle = makeStyles(theme=>{
             position:"fixed",
             width:"100%",
             bottom:"0",
-            background:"#262829",
+            background:"hsl(210, 3%, 13%)",
             height:"65px",
             display:"flex",
             alignItems:"center",
             justifyContent:"center",
-            padding:"0 20px",
+            padding:"0 15px",
             "& .items":{
                 flex:"1 1 0",
                 display:"flex",
@@ -92,9 +96,10 @@ const useStyle = makeStyles(theme=>{
             },
 
             "& button":{
-                color:"#fff",
-                margin:"0 8px",
-                transition:"background .1s"
+                margin:"0 9px",
+                background:"hsl(210, 3%, 17%)",
+                transition:"background .1s",
+                fontSize:"inherit"
             },
             "& .redBackground":{
                 background:"#B71C1C",
@@ -119,7 +124,10 @@ const useStyle2=makeStyles(theme=>{
             top:"0",
             visibility:"hidden",
             transition:"visibility .2s,right .3s",
-            
+            borderRadius:"10px 0 0 10px",
+            padding:"0px 0",
+            // margin:"15px 0",
+            // background:"hsl(210, 3%, 19%)",
             "&.show":{
                 right:"0",
                 visibility:"visible",
@@ -134,19 +142,20 @@ const useStyle2=makeStyles(theme=>{
             },
             "& .btnsContainer":{
                 padding:"3px 8px",
-                display:"flex"
+                display:"flex",
+                margin:"5px 0"
             },
             
             "& .input":{
                 flexGrow:"1",
-                padding:`5px ${theme.spacing(1)}px`,
+                padding:`0 10px`,
             },
             "& .messages":{
                 overflowY:"scroll",
                 flexGrow:1
             },
             "& .listHeader":{
-                background:"#262829" //dark background 
+                background:"#262829",
             },
         },
     }
@@ -239,7 +248,7 @@ const captureScreen=()=>{
         
 }
 
-const Timer= memo(()=>{
+const Timer = memo(()=>{
     const [timer,setTimer] = useState(new Date());
     const updateTimer=()=>{
         setTimer(new Date());
@@ -262,35 +271,21 @@ const Timer= memo(()=>{
     )
 })
 
-const socketState = atom({
-    key: 'socket', // unique ID (with respect to other atoms/selectors)
-    default: io(SOCKET_ENDPOINT),
-});
-
-const usersState=atom({
-    key:"users",
-    default:[]
-});
-
-const selfState = atom({
-    key:"self",
-    default:""
-})
-
-const Drawer=({showChat,isAdmin})=>{
+const Drawer = memo(({showChat,setShowChat})=>{
     const [chats,setChats] = useState([]);
     const [isQuestion,setIsQuestion] = useState(false);
     const [questionHardness,setQuestionHardness] = useState(5);
     const [selectedQuestionID,setSelectedQuestionID] = useState(null);
     const [messageInput,setMessageInput] = useState("");
 
+    // console.log('rerender');
+    
     const socket = useRecoilValue(socketState);
     const users = useRecoilValue(usersState);
-    const selfS = useRecoilValue(selfState);
+    const self = useRecoilValue(selfState);
 
     const messageInputRef = useRef(null);
 
-    
     const classes = useStyle2();
     
     const selectQuestion=(questionID)=>{
@@ -311,7 +306,7 @@ const Drawer=({showChat,isAdmin})=>{
         const data={
             text:messageInput.trim(),
         }
-        if(isAdmin){
+        if(self.isAdmin){
             if(isQuestion){
                 data.hardness=questionHardness;
             }
@@ -374,14 +369,13 @@ const Drawer=({showChat,isAdmin})=>{
         <Paper square className={[classes.sidebar,showChat ? "show" : ""].join(" ")}>
             <div className="users">
                 <List 
-                    subheader={<ListSubheader component="div" className="listHeader">People {users.length > 0 ? `(${users.length+1})` : ""}</ListSubheader>}
+                    subheader={<ListSubheader component="div" className="listHeader">People {users.length > 0 ? `(${users.length+1})` : ""} <IconButton style={{float:"right"}} onClick={()=>setShowChat(false)}><CloseIcon /></IconButton></ListSubheader>}
                     style={{maxHeight:"300px",overflowY:"scroll",}}
-                    
                 >
                     {
-                        selfS.length >0 &&
+                        self.username.length >0 &&
                         <ListItem>
-                            <ListItemText className="selfUserContainer" primary={<Typography component="div">{selfS} <span className="caption"> &nbsp; You</span> </Typography>} />
+                            <ListItemText className="selfUserContainer" primary={<Typography component="div">{self.username} <span className="caption"> &nbsp; You</span> </Typography>} />
                         </ListItem>
                     }
                     {
@@ -415,22 +409,28 @@ const Drawer=({showChat,isAdmin})=>{
                             }
 
                             return (
-                                <ChatListItem key={chat.id} id={chat.id} rate={chat.rate} ratingOnChange={ratingOnChange} sender={chat.sender} repliedText={repliedText} hardness={chat.hardness} role={role} onClick={onClick} text={chat.text} date={chat.date} isAdmin={isAdmin} />
+                                <ChatListItem key={chat.id} id={chat.id} rate={chat.rate} ratingOnChange={ratingOnChange} sender={chat.sender} repliedText={repliedText} hardness={chat.hardness} role={role} onClick={onClick} text={chat.text} date={chat.date} isAdmin={self.isAdmin} />
                             )
                         })
                     }
                 </List>
             </div>
             {
-                    !isAdmin && selectedQuestionID &&
+                    !self.isAdmin && selectedQuestionID &&
                     (
+                        <>
+                        <Divider />
                         <div className="replyContainer">
-                            <span onClick={()=>{setSelectedQuestionID(null)}}><CloseIcon /></span>
-                            Question: &nbsp;
-                            {
-                                chats.filter((chat)=>chat.id===selectedQuestionID)[0]?.text
-                            }
+                            <span><ReplyIcon /></span>
+                            <span className="text">
+                                <span>&nbsp; Question: &nbsp;</span>
+                                {
+                                    chats.filter((chat)=>chat.id===selectedQuestionID)[0]?.text
+                                }
+                            </span>
+                            <IconButton size="small" onClick={()=>{setSelectedQuestionID(null)}} style={{float:"right"}} ><CloseIcon /></IconButton>
                         </div>
+                        </>
                     )
             }
             <form className="form" onSubmit={sendMessages}>
@@ -452,11 +452,10 @@ const Drawer=({showChat,isAdmin})=>{
                     </IconButton>
                 </div>
             </form>
-            <div className="btnsContainer">
-
-                {
-                    isAdmin && 
-                    (
+            {
+                self.isAdmin && 
+                (
+                    <div className="btnsContainer">
                         <div className="msgMode">
                             <Button onClick={()=>{setIsQuestion(true)}} >Question {isQuestion ? <TickIcon /> : ""} </Button>
                             <Button onClick={()=>{setIsQuestion(false)}} >Message {!isQuestion ? <TickIcon /> : "" } </Button>
@@ -471,13 +470,12 @@ const Drawer=({showChat,isAdmin})=>{
                                 />)
                             }
                         </div>
-                    )
-                }
-            </div>
-            
+                    </div>
+                )
+            }
         </Paper>
     );
-}
+})
 
 export default function Room(props) {
     const [room,setRoom] = useState("room1");
@@ -487,7 +485,6 @@ export default function Room(props) {
     const [isCanvasSharing,setIsCanvasSharing]=useState(false);
     const [streams,setStreams]= useState([]);
     const [selfStream,setSelfStream] = useState(null);
-    const [isAdmin,setIsAdmin]=useState(false);
     const [selectedCanvasButton,setSelectedCanvasButton] = useState(4);
     const [pickedColor,setPickedColor]= useState(colorsArr[0]);
     const [showColorPicker,setShowColorPicker]=useState(false);
@@ -511,7 +508,7 @@ export default function Room(props) {
 
     const socket = useRecoilValue(socketState);
     const setUsers = useSetRecoilState(usersState);
-    const setSelfS = useSetRecoilState(selfState);
+    const [self,setSelf] = useRecoilState(selfState);
     
     const handleNegotiationNeeded=async(pc)=> {
         const offer=await pc.createOffer();
@@ -722,17 +719,40 @@ export default function Room(props) {
         socket.emit('clear-chat');
     }
     
+    // useEffect(()=>{
+    //     socket.on('connect',()=>{
+    //         console.log('socket connection established');
+    //     }); 
+    //     //TODO: reset all variables if socket disconnected (if needed)
+    //     return()=>{
+    //         socket.close();
+    //     }
+    // },[]);
+
+    
     useEffect(()=>{
         socket.on('connect',()=>{
             console.log('socket connection established');
-        }); 
-        //TODO: reset all variables if socket disconnected (if needed)
-        return()=>{
-            socket.close();
-        }
-    },[]);
+        });
 
-    useEffect(()=>{
+        socket.on('self-info',(data)=>{
+            setSelf(last=>{
+                return{
+                    ...last,
+                    isAdmin:data.isAdmin,
+                    username:data.username
+                }
+
+            });
+            setRoomName(data.roomName);
+        });
+
+        socket.on("full-whiteboard-data",(dataArr)=>{ //recieve previously shared WB data
+            whiteboardDataRef.current=dataArr;
+            setIsPreviousWhiteboardRecieved(true);
+        });
+        
+        
         socket.on('new-user-joined',async({target,username})=>{ //start of peer A
             const newUser = new User(username,target);
             connectionsRef.current[target] = createPeer(target,username);
@@ -740,9 +760,14 @@ export default function Room(props) {
                 return [...lastVal,newUser]
             });
 
-            if(selfStream){
-                selfStream.getTracks().forEach((track)=>{
-                    connectionsRef.current[target].addTrack(track,selfStream);
+            let tempSelfStream;
+            setSelfStream(last=>{
+                tempSelfStream=last;
+                return last;
+            });
+            if(tempSelfStream){
+                tempSelfStream.getTracks().forEach((track)=>{
+                    connectionsRef.current[target].addTrack(track,tempSelfStream);
                 });
             }
             else{
@@ -754,39 +779,6 @@ export default function Room(props) {
                 });
             }
         })
-
-    },[selfStream]);
-
-    useEffect(()=>{
-        
-        socket.on("whiteboard-data",(data)=>{
-            if(isPreviousWhiteboardRecieved){ //if previous whiteboard data recieved then you save current whiteboard sharing data
-                whiteboardDataRef.current.push(data);
-            }
-            whiteboardImgRef.current.src=data.base64ImageData;
-            setWbSender(data.sender); // will not rerender if sender doesn't changed
-            setIsWhiteboardSharing(true);
-        });
-    },[isPreviousWhiteboardRecieved])
-    
-    useEffect(()=>{
-        
-        socket.on('self-info',(data)=>{
-            if(data.isAdmin){
-                setIsAdmin(true);
-            }
-            setSelfS(data.username);
-            setRoomName(data.roomName);
-        });
-
-
-        
-        
-        socket.on("full-whiteboard-data",(dataArr)=>{ //recieve previously shared WB data
-            whiteboardDataRef.current=dataArr;
-            setIsPreviousWhiteboardRecieved(true);
-        });
-
 
         socket.on('answer',async({answer,target})=>{ //webrtc answer
             await connectionsRef.current[target].setRemoteDescription(new RTCSessionDescription(answer));            
@@ -816,7 +808,7 @@ export default function Room(props) {
             const candidate = new RTCIceCandidate(incoming);
             connectionsRef.current[target].addIceCandidate(candidate);
         });
-
+        
         socket.on("user-disconnected",userSocketID=>{ //when some user disconnected from room
             setStreams(lastVal=>{ //update streams 
                 return lastVal.filter(stream=> stream.target !== userSocketID );
@@ -826,10 +818,28 @@ export default function Room(props) {
                 return lastVal.filter((user)=> user.connectionID !== userSocketID);
             });
         });
-        
+
+        return()=>{
+            socket.close();
+        }
     },[]);
 
+    useEffect(()=>{
+        console.log('whiteboard-data listener created');
+        socket.on("whiteboard-data",(data)=>{
+            console.log('whiteboard-data called');
+            
+            if(isPreviousWhiteboardRecieved){ //if previous whiteboard data recieved then you save current whiteboard sharing data
+                whiteboardDataRef.current.push(data);
+            }
+            whiteboardImgRef.current.src=data.base64ImageData;
+            setWbSender(data.sender); // will not rerender if sender doesn't changed
+            setIsWhiteboardSharing(true);
+        });
+    },[isPreviousWhiteboardRecieved]);
     
+    
+
     return (
         <Paper square className="container">
             <div className="main">
@@ -932,7 +942,7 @@ export default function Room(props) {
                 </div>
                 
             </div>
-            <Drawer showChat={showChat} isAdmin={isAdmin} />
+            <Drawer showChat={showChat} setShowChat={setShowChat}/>
                         
             <Paper
                 className={classes.nav}
@@ -1013,8 +1023,8 @@ export default function Room(props) {
                 </div>
                 <div className="items right">
                     {
-                        isAdmin &&
-                        (<IconButton onClick={clearChat}>
+                        self.isAdmin &&
+                        (<IconButton onClick={clearChat} >
                             <ClearIcon />
                         </IconButton>)
                     }
@@ -1031,13 +1041,6 @@ export default function Room(props) {
         </Paper>
     )
 }
-
-
-    // const toggleMic=(enable)=>{
-    //     desktopStream.getAudioTracks()[0].enabled = enable;
-    //     setMicIsOn(enable);
-    // }
-    
     // const mixScreenAudio=(enable)=>{//will mix audio with shared desktop
     //     if(enable){
     //         captureScreen()
