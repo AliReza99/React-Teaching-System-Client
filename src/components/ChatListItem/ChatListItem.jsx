@@ -1,4 +1,4 @@
-import React,{useState} from 'react';
+import React,{useState,memo} from 'react';
 import Rating from '@material-ui/lab/Rating';
 import {
     ListItemSecondaryAction,
@@ -7,7 +7,7 @@ import {
     Typography,
 } from "@material-ui/core";
 
-const ChatListItem = ({id,role,onClick,text,date,sender,hardness,repliedText,isAdmin,ratingOnChange,rate}) => {
+const ChatListItem = memo(({id,role,onClick,text,date,sender,hardness,repliedText,isAdmin,ratingOnChange,rate}) => {
     let isButton= false;
     const classes=[];
     let primaryText;
@@ -25,7 +25,6 @@ const ChatListItem = ({id,role,onClick,text,date,sender,hardness,repliedText,isA
     }
     const [value,setValue]=useState(rate);
     
-    
     return (
         <ListItem 
             button={isButton} 
@@ -40,7 +39,7 @@ const ChatListItem = ({id,role,onClick,text,date,sender,hardness,repliedText,isA
                             {text}
                         </Typography>
                         {
-                            role==="answer" && isAdmin &&
+                            isAdmin && role==="answer" &&
                             <Rating
                                 className="rating"
                                 name={`answer-rating${id}`}
@@ -53,7 +52,7 @@ const ChatListItem = ({id,role,onClick,text,date,sender,hardness,repliedText,isA
                             />
                         }
                         {
-                            role==="answer" && !isAdmin &&
+                            !isAdmin && role==="answer" &&
                             <Rating
                                 className="rating"
                                 name={`answer-rating${id}`}
@@ -73,6 +72,6 @@ const ChatListItem = ({id,role,onClick,text,date,sender,hardness,repliedText,isA
             </ListItemSecondaryAction>
         </ListItem>
     );
-}
+})
 
 export default ChatListItem;

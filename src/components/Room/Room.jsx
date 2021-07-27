@@ -17,8 +17,6 @@ import {
     Tooltip,
     ClickAwayListener,
     Divider,
-    // Menu,
-    // MenuItem,
 } from "@material-ui/core";
 
 
@@ -285,13 +283,12 @@ const Timer = memo(()=>{
 
 const Drawer = memo(({showChat,setShowChat})=>{
     const [chats,setChats] = useState([]);
-    const [isQuestion,setIsQuestion] = useState(false);
+    //role: message | question | answer
+    const [msgRole,setMsgRole] = useState('message');
     const [questionHardness,setQuestionHardness] = useState(5);
     const [selectedQuestionID,setSelectedQuestionID] = useState(null);
     const [messageInput,setMessageInput] = useState("");
 
-    // console.log('rerender');
-    
     const socket = useRecoilValue(socketState);
     const users = useRecoilValue(usersState);
     const self = useRecoilValue(selfState);
@@ -319,22 +316,28 @@ const Drawer = memo(({showChat,setShowChat})=>{
             text:messageInput.trim(),
         }
         if(self.isAdmin){
-            if(isQuestion){
+            if(msgRole==='question'){
                 data.hardness=questionHardness;
             }
         }
-        else{
-            if(selectedQuestionID){
-                data.repliedID=selectedQuestionID;
-            }
+        if(selectedQuestionID){
+            data.repliedID=selectedQuestionID;
         }
         socket.emit('chat', data);
         setMessageInput("");
         setSelectedQuestionID(null);
     }
 
+    useEffect(()=>{
+        if(!selectedQuestionID){
+            setMsgRole("message")
+        }
+    },[selectedQuestionID]);
     
     useEffect(()=>{
+
+        
+        
         socket.on('chat',({sender,text,date,id,role,rate,hardness,repliedID})=>{ // recieve new chat message
             const msg=new Message(id,sender,text,date,role,rate,hardness,repliedID);
             setChats(prev=>{
@@ -345,11 +348,11 @@ const Drawer = memo(({showChat,setShowChat})=>{
         });
     
         socket.on('full-chat-update',(chatsArr)=>{ //recieve previous chats 
-            const dateCorrectedArr= chatsArr.map((chat)=>new Message(chat.id,chat.sender,chat.text,chat.date,chat.role,chat.rate,chat.hardness));
+            const dateCorrectedArr= chatsArr.map((chat)=>new Message(chat.id,chat.sender,chat.text,chat.date,chat.role,chat.rate,chat.hardness,chat.repliedID));
             setChats(()=>{
                 return dateCorrectedArr;
             });
-            if(dateCorrectedArr.length ===0){
+            if(dateCorrectedArr.length ===0){ //if message replied but chat was cleared , replied message unselected
                 setSelectedQuestionID(null);
             }
         });
@@ -366,7 +369,7 @@ const Drawer = memo(({showChat,setShowChat})=>{
                         newMsg,
                         ...lastChats.slice(index+1)
                     ];
-                    console.log(newArr);
+                    // console.log(newArr);
     
                     return newArr;
     
@@ -411,9 +414,13 @@ const Drawer = memo(({showChat,setShowChat})=>{
                             let role=chat.role;
                             let onClick=null;
                             let repliedText=chats.filter((elem)=>elem.id===chat.repliedID)[0]?.text;
+                            let rate = chat.rate || 0;
+                            
+                            
                             if(role==="question"){
                                 onClick=()=>{
-                                    selectQuestion(chat.id)
+                                    selectQuestion(chat.id);
+                                    setMsgRole('answer');
                                 }
                             }
                             const ratingOnChange=(value)=>{
@@ -421,14 +428,14 @@ const Drawer = memo(({showChat,setShowChat})=>{
                             }
 
                             return (
-                                <ChatListItem key={chat.id} id={chat.id} rate={chat.rate} ratingOnChange={ratingOnChange} sender={chat.sender} repliedText={repliedText} hardness={chat.hardness} role={role} onClick={onClick} text={chat.text} date={chat.date} isAdmin={self.isAdmin} />
+                                <ChatListItem key={chat.id} id={chat.id} rate={rate} ratingOnChange={ratingOnChange} sender={chat.sender} repliedText={repliedText} hardness={chat.hardness} role={role} onClick={onClick} text={chat.text} date={chat.date} isAdmin={self.isAdmin} />
                             )
                         })
                     }
                 </List>
             </div>
             {
-                    !self.isAdmin && selectedQuestionID &&
+                    selectedQuestionID &&
                     (
                         <>
                         <Divider />
@@ -469,10 +476,10 @@ const Drawer = memo(({showChat,setShowChat})=>{
                 (
                     <div className="btnsContainer">
                         <div className="msgMode">
-                            <Button onClick={()=>{setIsQuestion(true)}} >Question {isQuestion ? <TickIcon /> : ""} </Button>
-                            <Button onClick={()=>{setIsQuestion(false)}} >Message {!isQuestion ? <TickIcon /> : "" } </Button>
+                            <Button onClick={()=>{setMsgRole('question')}} >Question {msgRole === "question" ? <TickIcon /> : ""} </Button>
+                            <Button onClick={()=>{setMsgRole('message')}} >Message {msgRole === "message" ? <TickIcon /> : "" } </Button>
                             {
-                                isQuestion &&
+                                msgRole === 'question' &&
                                 (<InputBase 
                                     type="number" 
                                     startAdornment={<InputAdornment position="start" component="label">Hardness: </InputAdornment>}
@@ -727,9 +734,17 @@ export default function Room(props) {
     const handleInput=(e,setter)=>{
         setter(e.target.value);
     }
-    const handleFileChange=()=>{
-        const ctx = whiteboardRef.current.getContext("2d");
+    const isFileImage = (file)=> {
+        return file && file['type'].split('/')[0] === 'image';
+    }
+    const handleImageInputChange=()=>{
         const file = fileInputRef.current.files[0];
+        if(!isFileImage(file)){
+            console.log('selected file is not image format');
+            return;
+        }
+        
+        const ctx = whiteboardRef.current.getContext("2d");
         const reader = new FileReader();
         reader.readAsDataURL(file);
         reader.onload=(e)=>{
@@ -749,10 +764,10 @@ export default function Room(props) {
     const [pageNum,setPageNum] = useState(null);
     
     const handlePdfChange =()=>{
-        const pdfjsLib = window['pdfjs-dist/build/pdf']
+        const pdfjsLib = window['pdfjs-dist/build/pdf'];
         // pdfjsLib.GlobalWorkerOptions.workerSrc = '//mozilla.github.io/pdf.js/build/pdf.worker.js';
         if(!pdfjsLib){
-            console.log('pdfjsLib not supported');
+            console.log('pdfjsLib is not supported');
             return
         }
 
@@ -767,9 +782,6 @@ export default function Room(props) {
             const typedarray = new Uint8Array(this.result);
 
             pdfjsLib.getDocument(typedarray).promise.then(pdfDocument => {
-                // console.log("the pdf has ",pdfDocument.numPages, "page(s).")
-                // pdfRef.current=pdf;
-                // pdfTotalPages.current = pdf.numPages;
                 setPdf(pdfDocument)
                 setPdfTotalPages(pdfDocument.numPages);
                 setPageNum(1);
@@ -982,7 +994,7 @@ export default function Room(props) {
                             <Tooltip title="Add Image" arrow>
                                 <Button component="label">
                                     <ImageIcon />
-                                    <input type="file" onChange={handleFileChange} ref={fileInputRef} hidden/>
+                                    <input type="file" onChange={handleImageInputChange} ref={fileInputRef} hidden/>
                                 </Button>
                             </Tooltip>                           
 
