@@ -1,9 +1,12 @@
 add join request when joining room 
-add support for log room members activity and send back to admin 
+add ability to rejoining same room 
 add ability to leave room and join another room
+
 fix canvas size and resize
 hide whiteboard if whiteboard sharer disconnected or user disable whiteboard
-add notification service to show connection & etc.
 
+move canvas toolbar to top of canvas
+improve fast forward functionality
 set resolution for share streams when deploy
-unmute video tags when deploy
+
+add notification service to show connection & etc.

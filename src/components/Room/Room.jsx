@@ -129,16 +129,19 @@ const useStyle2=makeStyles(theme=>{
             position:"fixed",
             width:"420px",
             height:"calc(100vh - 65px)",
-            right:"-100%",
+            // right:"-100%",
+            right:"0",
             top:"0",
             visibility:"hidden",
-            transition:"visibility .2s,right .3s",
             borderRadius:"10px 0 0 10px",
             padding:"0px 0",
+            transform:"translateX(100%)",
+            transition:"visibility .2s,right .3s,transform .3s",
             // margin:"15px 0",
             // background:"hsl(210, 3%, 19%)",
             "&.show":{
-                right:"0",
+                // right:"0",
+                transform:"translateX(0)",
                 visibility:"visible",
                 
             },
@@ -498,7 +501,8 @@ export default function Room(props) {
     const [pickedColor,setPickedColor]= useState(colorsArr[0]);
     const [showColorPicker,setShowColorPicker]=useState(false);
     const [isShowFastplay,setIsShowFastplay] = useState(false);
-    const [isPreviousWhiteboardRecieved,setIsPreviousWhiteboardRecieved]=useState(false);
+    // const [isPreviousWhiteboardRecieved,setIsPreviousWhiteboardRecieved]=useState(false);
+    const [isFullWbDataFetched,setIsFullWbDataFetched]=useState(false);
     const [fastplaySender,setFastplaySender] = useState("");
     const [wbSender,setWbSender]=useState("");
     const [isWhiteboardSharing,setIsWhiteboardSharing] = useState(false);
@@ -506,6 +510,7 @@ export default function Room(props) {
     const [showChat,setShowChat] = useState(true);
     const [showMore,setShowMore] = useState(false);
     
+    const isPrevWBrecieved=useRef(false);
     const connectionsRef=useRef({});
     const whiteboardRef=useRef(null);
     const fileInputRef=useRef(null);
@@ -654,6 +659,7 @@ export default function Room(props) {
         socket.emit("full-whiteboard-data");
     }
 
+
     const fastplayImgs=async()=>{
         if(isFastplayPlaying.current){ //to avoid multiple fastplay at the same time 
             return;
@@ -675,6 +681,15 @@ export default function Room(props) {
             await new Promise(r => setTimeout(r, 120)); //wait 100ms
         }
         isFastplayPlaying.current=false; //release fastplay button action
+    }
+    const fastplay=()=>{
+        if(isPrevWBrecieved.current){
+            fastplayImgs();
+        }
+        else{
+            requestPrevWhiteboardData();
+        }
+        
     }
 
     useEffect(()=>{
@@ -803,11 +818,26 @@ export default function Room(props) {
         socket.emit('clear-chat');
     }
     
+    const exportChatMessages=()=>{
+        socket.emit("export-chat");
+    }
+    const exportUsersActivity=()=>{
+        socket.emit("export-activities");
+    }
+    
     useEffect(()=>{
         socket.on('connect',()=>{
             console.log('socket connection established');
         });
 
+        socket.on("export-chat",(chats)=>{
+            console.log('export all chats',chats);
+        })        
+        socket.on("export-activities",(activities)=>{
+            console.log('export all users Activity',activities);
+        })
+        
+        
         socket.on('self-info',(data)=>{
             setSelf(last=>{
                 return{
@@ -822,8 +852,37 @@ export default function Room(props) {
 
         socket.on("full-whiteboard-data",(dataArr)=>{ //recieve previously shared WB data
             whiteboardDataRef.current=dataArr;
-            setIsPreviousWhiteboardRecieved(true);
+            setIsFullWbDataFetched(true);
+            isPrevWBrecieved.current=true;
+            fastplayImgs();
+            // setIsPreviousWhiteboardRecieved(true);
         });
+
+        socket.on("whiteboard-data",(data)=>{
+            let isPresenting=false;
+            setIsCanvasSharing(lastVal=>{
+                if(lastVal){
+                    isPresenting=true;
+                }
+                return lastVal;
+            })
+            
+            if(isPrevWBrecieved.current){
+                whiteboardDataRef.current.push(data);                
+            }
+
+            if(isPresenting){
+                console.log('currently presenting');
+                setWbSender(data.sender); // will not rerender if sender doesn't changed
+            }
+            else{
+                console.log('currently just watchin');
+                whiteboardImgRef.current.src=data.base64ImageData;
+                setWbSender(data.sender); // will not rerender if sender doesn't changed
+                setIsWhiteboardSharing(true);
+            }
+        });
+        
         
         
         socket.on('new-user-joined',async({target,username})=>{ //start of peer A
@@ -896,20 +955,6 @@ export default function Room(props) {
             socket.close();
         }
     },[]);
-
-    useEffect(()=>{
-        console.log('whiteboard-data listener created');
-        socket.on("whiteboard-data",(data)=>{
-            console.log('whiteboard-data called');
-            
-            if(isPreviousWhiteboardRecieved){ //if previous whiteboard data recieved then you save current whiteboard sharing data
-                whiteboardDataRef.current.push(data);
-            }
-            whiteboardImgRef.current.src=data.base64ImageData;
-            setWbSender(data.sender); // will not rerender if sender doesn't changed
-            setIsWhiteboardSharing(true);
-        });
-    },[isPreviousWhiteboardRecieved]);
     
 
 
@@ -1100,19 +1145,10 @@ export default function Room(props) {
                     <IconButton onClick={shareWhiteboard}>
                         <PenIcon />
                     </IconButton>
-                    {
-                        isPreviousWhiteboardRecieved ?
-                        (
-                            <IconButton onClick={fastplayImgs} >
-                                <FastForwardIcon />
-                            </IconButton>
-                        ) :
-                        (
-                            <IconButton onClick={requestPrevWhiteboardData} >
-                                <FastForwardIcon />!
-                            </IconButton>
-                        )
-                    }
+                    
+                    <IconButton onClick={fastplay} >
+                        <FastForwardIcon />
+                    </IconButton>
 
                     {
                         self.isAdmin &&
@@ -1122,8 +1158,8 @@ export default function Room(props) {
                                     <MoreIcon />
                                 </IconButton>
                                     <List className={["moreList",showMore ? "show" : ""].join(" ")} >
-                                        <ListItem button className="listItem">Export Room Chats</ListItem>
-                                        <ListItem button className="listItem">Export Users Activity</ListItem>
+                                        <ListItem button className="listItem" onClick={exportChatMessages}> Export Room Chats </ListItem>
+                                        <ListItem button className="listItem" onClick={exportUsersActivity}>Export Users Activity</ListItem>
                                     </List>
                             </div>
                         </ClickAwayListener>
