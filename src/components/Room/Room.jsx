@@ -1,187 +1,28 @@
-import React,{useEffect,useState,useRef,useCallback,memo} from 'react';
+import React,{useEffect,useState,useRef,useCallback} from 'react';
 import "./Room.scss";
-// import {io} from "socket.io-client";
-import {makeStyles} from "@material-ui/core/styles";
-import { BlockPicker } from 'react-color';
+import Drawer from "../Drawer/Drawer";
+import Whiteboard from "../Whiteboard/Whiteboard";
+import Navbar from "../Navbar/Navbar";
 import {
     Paper,
     InputBase,
-    List,
-    ListSubheader,
-    ListItem,
-    ListItemText,
-    Typography,
     IconButton,
     Button,
-    InputAdornment,
-    Tooltip,
-    ClickAwayListener,
-    Divider,
 } from "@material-ui/core";
 
-
-
 import {
-    MicRounded as MicrophoneIcon,
-    SendRounded as SendIcon,
-    DesktopMacRounded as DesktopIcon,
-    DesktopAccessDisabled as DesktopDesableIcon,
-    MicOffRounded as MicrophoneDisableIcon,
-    CheckRounded as TickIcon,
     Close as CloseIcon,
-    Gesture as GestureIcon,
-    ShowChartTwoTone as LineIcon,
-    Crop32 as SquareIcon,
-    FiberManualRecordOutlined as CircleIcon,
-    TextFields as TextIcon,
-    InsertPhoto as ImageIcon,
-    ColorLens as ColorIcon,
-    BorderColorRounded as PenIcon,
-    CallEndRounded as HangupIcon,
-    ChatRounded as ChatIcon,
-    FastForwardRounded as FastForwardIcon,
-    ClearAll as ClearIcon,
-    ReplyRounded as ReplyIcon,
-    MoreVert as MoreIcon,
-    PictureAsPdfRounded as PDFIcon,
-    NavigateNextRounded as NextArrow,
-
 } from "@material-ui/icons";
 import {
     useRecoilValue,
     useSetRecoilState,
     useRecoilState
 } from "recoil";
-
-import ChatListItem from "../ChatListItem/ChatListItem";
-import {
-    drawText,
-    drawCircle,
-    drawLine,
-    drawRect,
-    freehandDraw,
-    clearCanvas,
-    setCanvasColors
-} from "../../scripts/canvasDraw";
-
 import {
     socketState,
     usersState,
     selfState
-} from "./Atoms";
-
-const colorsArr=["#000000","#E53935","#CFD8DC","#8E24AA","#303F9F","#0097A7","#FFEB3B","#76FF03","#4FC3F7","#CE93D8"]; // colors for canvas draw
-
-const removeEvents=(element)=>{
-    element.onmousedown=null;
-    element.onmousemove=null
-    element.onmouseup=null;
-    element.onclick=null;
-}
-
-const useStyle = makeStyles(theme=>{
-    return {
-        nav:{
-            position:"fixed",
-            width:"100%",
-            bottom:"0",
-            background:"hsl(210, 3%, 13%)",
-            height:"65px",
-            display:"flex",
-            alignItems:"center",
-            justifyContent:"center",
-            padding:"0 15px",
-            "& .items":{
-                flex:"1 1 0",
-                display:"flex",
-            },
-            "& .center":{
-                justifyContent:"center"
-            },
-            "& .right":{
-                justifyContent:"flex-end"
-            },
-
-            "& button":{
-                margin:"0 9px",
-                background:"hsl(210, 3%, 17%)",
-                transition:"background .1s",
-                fontSize:"inherit"
-            },
-            "& .redBackground":{
-                background:"#B71C1C",
-                "&:hover":{
-                    background:"#dd2323"
-                }
-            },
-        },
-
-
-    }
-});
-const useStyle2=makeStyles(theme=>{
-    return {
-        sidebar:{
-            display:"flex",
-            flexDirection:"column",
-            position:"fixed",
-            width:"420px",
-            height:"calc(100vh - 65px)",
-            // right:"-100%",
-            right:"0",
-            top:"0",
-            visibility:"hidden",
-            borderRadius:"10px 0 0 10px",
-            padding:"0px 0",
-            transform:"translateX(100%)",
-            transition:"visibility .2s,right .3s,transform .3s",
-            // margin:"15px 0",
-            // background:"hsl(210, 3%, 19%)",
-            "&.show":{
-                // right:"0",
-                transform:"translateX(0)",
-                visibility:"visible",
-                
-            },
-            "& .inputContainer":{
-                display:"flex",
-                background:"#2B2E2F",
-                margin:"8px 8px",
-                borderRadius:"30px",
-                padding:"1px 0 1px 10px "
-            },
-            "& .btnsContainer":{
-                padding:"3px 8px",
-                display:"flex",
-                margin:"5px 0"
-            },
-            
-            "& .input":{
-                flexGrow:"1",
-                padding:`0 10px`,
-            },
-            "& .messages":{
-                overflowY:"scroll",
-                flexGrow:1
-            },
-            "& .listHeader":{
-                background:"#262829",
-            },
-        },
-    }
-})
-class Message{
-    constructor(id,sender,text,date,role,rate,hardness,repliedID){
-        this.id=id;
-        this.sender=sender;
-        this.text=text;
-        this.date=new Date(date);
-        this.role=role;
-        this.rate=rate;
-        this.hardness=hardness;
-        this.repliedID=repliedID;
-    }
-}
+} from "../../Atoms/Atoms";
 class VidStream{
     constructor(stream,target,username){
         this.stream=stream;
@@ -195,20 +36,6 @@ class User{
         this.connectionID = connectionID;
     }
 }
-
-
-
-// const captureWebcam=()=> {
-//     return new Promise((resolve,reject) => {
-//         navigator.mediaDevices.getUserMedia({video:true,audio:true})
-//         .then(currentStream=>{
-//             resolve(currentStream);
-//         })
-//         .catch(() =>{
-//             reject();
-//         })
-//     });
-// }
 
 const toggleStreamTrack=(stream,type,enabled)=>{
     /* 
@@ -258,277 +85,34 @@ const captureScreen=()=>{
         
 }
 
-const Timer = memo(()=>{
-    const [timer,setTimer] = useState(new Date());
-    const updateTimer=()=>{
-        setTimer(new Date());
-    }
-    
-    useEffect(()=>{
-        const intervalID=window.setInterval(updateTimer,60000);
-
-        return ()=>{
-            window.clearInterval(intervalID);
-        }
-    },[]);
-
-    return(
-        <>
-            {   
-                `${timer.getHours()<10 ? "0" : ""}${ timer.getHours()>12 ? timer.getHours() - 12 : timer.getHours() }:${timer.getMinutes()<10 ? "0" : ""}${timer.getMinutes()}  ${timer.getHours()>12 ? "PM" : "AM"} `
-            }
-        </>
-    )
-})
-
-const Drawer = memo(({showChat,setShowChat})=>{
-    const [chats,setChats] = useState([]);
-    //role: message | question | answer
-    const [msgRole,setMsgRole] = useState('message');
-    const [questionHardness,setQuestionHardness] = useState(5);
-    const [selectedQuestionID,setSelectedQuestionID] = useState(null);
-    const [messageInput,setMessageInput] = useState("");
-
-    const socket = useRecoilValue(socketState);
-    const users = useRecoilValue(usersState);
-    const self = useRecoilValue(selfState);
-
-    const messageInputRef = useRef(null);
-
-    const classes = useStyle2();
-    
-    const selectQuestion=(questionID)=>{
-        setSelectedQuestionID(questionID);
-        messageInputRef.current.focus();
-    }
-    const rateMessage=(rate,messageID)=>{
-        socket.emit('rate-message',{
-            messageID:messageID,
-            rate:rate
-        })
-    } 
-    const sendMessages=(e)=>{
-        e.preventDefault();
-        if(messageInput.trim()===""){//if it was empty message 
-            return;
-        }
-        const data={
-            text:messageInput.trim(),
-        }
-        if(self.isAdmin){
-            if(msgRole==='question'){
-                data.hardness=questionHardness;
-            }
-        }
-        if(selectedQuestionID){
-            data.repliedID=selectedQuestionID;
-        }
-        socket.emit('chat', data);
-        setMessageInput("");
-        setSelectedQuestionID(null);
-    }
-
-    useEffect(()=>{
-        if(!selectedQuestionID){
-            setMsgRole("message")
-        }
-    },[selectedQuestionID]);
-    
-    useEffect(()=>{
-
-        
-        
-        socket.on('chat',({sender,text,date,id,role,rate,hardness,repliedID})=>{ // recieve new chat message
-            const msg=new Message(id,sender,text,date,role,rate,hardness,repliedID);
-            setChats(prev=>{
-                return [...prev,msg]
-            });
-            // messageContainerRef.current.scrollTop=10000;//scroll to button after new message
-            
-        });
-    
-        socket.on('full-chat-update',(chatsArr)=>{ //recieve previous chats 
-            const dateCorrectedArr= chatsArr.map((chat)=>new Message(chat.id,chat.sender,chat.text,chat.date,chat.role,chat.rate,chat.hardness,chat.repliedID));
-            setChats(()=>{
-                return dateCorrectedArr;
-            });
-            if(dateCorrectedArr.length ===0){ //if message replied but chat was cleared , replied message unselected
-                setSelectedQuestionID(null);
-            }
-        });
-    
-        socket.on("update-message",(message)=>{ //single chat message update 
-            setChats((lastChats)=>{
-                const index= lastChats.findIndex((chat)=>chat.id===message.id);
-    
-                if(index !== -1){
-                    const newMsg={...lastChats[index]};
-                    newMsg.rate=message.rate;
-                    const newArr = [ 
-                        ...lastChats.slice(0,index),
-                        newMsg,
-                        ...lastChats.slice(index+1)
-                    ];
-                    // console.log(newArr);
-    
-                    return newArr;
-    
-                }
-                return lastChats;
-            })
-        });
-    },[])
-    
-    
-    return (
-        <Paper square className={[classes.sidebar,showChat ? "show" : ""].join(" ")}>
-            <div className="users">
-                <List 
-                    subheader={<ListSubheader component="div" className="listHeader">People {users.length > 0 ? `(${users.length+1})` : ""} <IconButton style={{float:"right"}} onClick={()=>setShowChat(false)}><CloseIcon /></IconButton></ListSubheader>}
-                    style={{maxHeight:"300px",overflowY:"scroll",}}
-                >
-                    {
-                        self.username.length >0 &&
-                        <ListItem>
-                            <ListItemText className="selfUserContainer" primary={<Typography component="div">{self.username} <span className="caption"> &nbsp; You</span> </Typography>} />
-                        </ListItem>
-                    }
-                    {
-                        users.map((user)=>{
-                            return (
-                                <ListItem key={user.connectionID}>
-                                    <ListItemText primary={user.username}/>
-                                </ListItem>
-                            )
-                        })
-                    }                       
-                </List>
-            </div>    
-            <div className="messages" >
-                <List 
-                    subheader={<ListSubheader className="listHeader" component="div">Messages {chats.length>0 ? `(${chats.length})` : ""}</ListSubheader>}
-                    disablePadding
-                >
-                    {
-                        chats.map((chat)=>{
-                            let role=chat.role;
-                            let onClick=null;
-                            let repliedText=chats.filter((elem)=>elem.id===chat.repliedID)[0]?.text;
-                            let rate = chat.rate || 0;
-                            
-                            
-                            if(role==="question"){
-                                onClick=()=>{
-                                    selectQuestion(chat.id);
-                                    setMsgRole('answer');
-                                }
-                            }
-                            const ratingOnChange=(value)=>{
-                                rateMessage(value,chat.id);
-                            }
-
-                            return (
-                                <ChatListItem key={chat.id} id={chat.id} rate={rate} ratingOnChange={ratingOnChange} sender={chat.sender} repliedText={repliedText} hardness={chat.hardness} role={role} onClick={onClick} text={chat.text} date={chat.date} isAdmin={self.isAdmin} />
-                            )
-                        })
-                    }
-                </List>
-            </div>
-            {
-                    selectedQuestionID &&
-                    (
-                        <>
-                        <Divider />
-                        <div className="replyContainer">
-                            <span><ReplyIcon /></span>
-                            <span className="text">
-                                <span>&nbsp; Question: &nbsp;</span>
-                                {
-                                    chats.filter((chat)=>chat.id===selectedQuestionID)[0]?.text
-                                }
-                            </span>
-                            <IconButton size="small" onClick={()=>{setSelectedQuestionID(null)}} style={{float:"right"}} ><CloseIcon /></IconButton>
-                        </div>
-                        </>
-                    )
-            }
-            <form className="form" onSubmit={sendMessages}>
-                <div className="inputContainer">
-                    <InputBase
-                        className="input"
-                        placeholder={selectedQuestionID ? "Reply..." :"Message..." }
-                        value={messageInput}
-                        onChange={(e)=>{setMessageInput(e.target.value)}}
-                        variant="outlined"
-                        inputProps={{
-                            ref:messageInputRef
-                        }}
-                        // multiline
-                        // maxRows={3}
-                    />
-                    <IconButton disabled={messageInput.length === 0} type="submit" aria-label="Send Message">
-                        <SendIcon/>
-                    </IconButton>
-                </div>
-            </form>
-            {
-                self.isAdmin && 
-                (
-                    <div className="btnsContainer">
-                        <div className="msgMode">
-                            <Button onClick={()=>{setMsgRole('question')}} >Question {msgRole === "question" ? <TickIcon /> : ""} </Button>
-                            <Button onClick={()=>{setMsgRole('message')}} >Message {msgRole === "message" ? <TickIcon /> : "" } </Button>
-                            {
-                                msgRole === 'question' &&
-                                (<InputBase 
-                                    type="number" 
-                                    startAdornment={<InputAdornment position="start" component="label">Hardness: </InputAdornment>}
-                                    inputProps={{min:0,max:10}}
-                                    onChange={(e)=>{setQuestionHardness(e.target.value)}}
-                                    value={questionHardness}
-                                />)
-                            }
-                        </div>
-                    </div>
-                )
-            }
-        </Paper>
-    );
-})
-
 export default function Room(props) {
-    const [room,setRoom] = useState("room1");
+    const [roomInput,setRoomInput] = useState("room1");
     const [usernameInput,setUsernameInput] = useState("");
-    const [desktopIsSharing,setDesktopIsSharing]=useState(false);
-    const [micIsSharing,setMicIsSharing]=useState(false);
-    const [isCanvasSharing,setIsCanvasSharing]=useState(false);
+    
+
+    const [isSelfDesktopSharing,setIsSelfDesktopSharing]=useState(false);
+    const [isSelfMicSharing,setIsMicSharing]=useState(false);
+    const [isWhiteboardSharing,setIsWhiteboardSharing]=useState(false);
+    
+
     const [streams,setStreams]= useState([]);
     const [selfStream,setSelfStream] = useState(null);
-    const [selectedCanvasButton,setSelectedCanvasButton] = useState(4);
-    const [pickedColor,setPickedColor]= useState(colorsArr[0]);
-    const [showColorPicker,setShowColorPicker]=useState(false);
+    
     const [isShowFastplay,setIsShowFastplay] = useState(false);
-    // const [isPreviousWhiteboardRecieved,setIsPreviousWhiteboardRecieved]=useState(false);
-    const [isFullWbDataFetched,setIsFullWbDataFetched]=useState(false);
     const [fastplaySender,setFastplaySender] = useState("");
-    const [wbSender,setWbSender]=useState("");
-    const [isWhiteboardSharing,setIsWhiteboardSharing] = useState(false);
-    const [roomName,setRoomName] = useState("")
+
+    const [wbSenderName,setWbSenderName]=useState("");
+    const [isWhiteboardRecieving,setIsWhiteboardRecieving] = useState(false);
+    const [roomName,setRoomName] = useState("");
     const [showChat,setShowChat] = useState(true);
-    const [showMore,setShowMore] = useState(false);
     
     const isPrevWBrecieved=useRef(false);
     const connectionsRef=useRef({});
-    const whiteboardRef=useRef(null);
-    const fileInputRef=useRef(null);
     const whiteboardImgRef= useRef(null);
     const fastplayImgRef= useRef(null);
     const whiteboardDataRef=useRef([]);
     const isFastplayPlaying= useRef(false);
-    const PdfInputRef= useRef(false);
     
-    const classes=useStyle();
-
     const socket = useRecoilValue(socketState);
     const setUsers = useSetRecoilState(usersState);
     const [self,setSelf] = useRecoilState(selfState);
@@ -613,7 +197,7 @@ export default function Room(props) {
             setSelfStream(tempStream);
         }
         
-        setMicIsSharing(true);
+        setIsMicSharing(true);
     }
     
     const shareDesktop=async()=>{
@@ -639,33 +223,16 @@ export default function Room(props) {
             setSelfStream(tempStream);
         }
 
-        setDesktopIsSharing(true);
+        setIsSelfDesktopSharing(true);
     }
 
-    useEffect(()=>{
-        setCanvasColors(whiteboardRef.current,pickedColor.hex);
-    },[pickedColor]);
-
-    
     const shareWhiteboard=()=>{
-        //initiate canvas
-        clearCanvas(whiteboardRef.current);
-        freehandDraw(whiteboardRef.current); //set freehand event as default draw method    
-
-        setIsCanvasSharing(true);
+        setIsWhiteboardSharing(last=>!last);
     }
-
-    // useEffect(()=>{
-    //     // if(self.isAdmin){
-    //         shareWhiteboard();
-
-    //     // }
-    // },[]);
 
     const requestPrevWhiteboardData=()=>{
         socket.emit("full-whiteboard-data");
     }
-
 
     const fastplayImgs=async()=>{
         if(isFastplayPlaying.current){ //to avoid multiple fastplay at the same time 
@@ -699,131 +266,17 @@ export default function Room(props) {
         
     }
 
-    useEffect(()=>{
-        if(isCanvasSharing){
-            const quality = .5;
-            window.setInterval(()=>{
-                const base64ImageData = whiteboardRef.current.toDataURL("image/png",quality);
-                socket.emit("whiteboard-data",{base64ImageData:base64ImageData})
-            },1000);
-        }
-    },[isCanvasSharing]);
-
-    
-    // const shareWebcam = async()=>{
-    //     const tempStream = await captureWebcam();
-        
-    //     for(const key in connectionsRef.current){
-    //         tempStream.getTracks().forEach((track)=>{
-    //             connectionsRef.current[key].addTrack(track,tempStream);
-    //         });
-    //     }
-    //     setSelfStream(tempStream);
-    // }
-    
-
     const handleSubmit=(e)=>{
         e.preventDefault();
         socket.emit('join-room',{
             username:usernameInput,
-            roomID:room
+            roomID:roomInput
         });
         // setIsJoinedRoom(true);
     }
 
     const handleInput=(e,setter)=>{
         setter(e.target.value);
-    }
-    const isFileImage = (file)=> {
-        return file && file['type'].split('/')[0] === 'image';
-    }
-    const handleImageInputChange=()=>{
-        const file = fileInputRef.current.files[0];
-        if(!isFileImage(file)){
-            console.log('selected file is not image format');
-            return;
-        }
-        
-        const ctx = whiteboardRef.current.getContext("2d");
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload=(e)=>{
-            if(e.target.readyState === FileReader.DONE){
-                const img = new Image();
-                img.src = e.target.result;
-                img.onload=()=>{
-                    ctx.drawImage(img,0,0,560,360);
-                }
-            }
-        }
-    }
-
-
-    const [pdf,setPdf]=useState(null);
-    const [pdfTotalPages,setPdfTotalPages] = useState(0);
-    const [pageNum,setPageNum] = useState(null);
-    
-    const handlePdfChange =()=>{
-        const pdfjsLib = window['pdfjs-dist/build/pdf'];
-        // pdfjsLib.GlobalWorkerOptions.workerSrc = '//mozilla.github.io/pdf.js/build/pdf.worker.js';
-        if(!pdfjsLib){
-            console.log('pdfjsLib is not supported');
-            return
-        }
-
-        const file=PdfInputRef.current.files[0];
-        if(file.type !== "application/pdf"){
-            console.error(file.name, "is not a pdf file.")
-            return;
-        }
-        const fileReader = new FileReader(); 
-
-        fileReader.onload = function() {
-            const typedarray = new Uint8Array(this.result);
-
-            pdfjsLib.getDocument(typedarray).promise.then(pdfDocument => {
-                setPdf(pdfDocument)
-                setPdfTotalPages(pdfDocument.numPages);
-                setPageNum(1);
-            });
-            
-            
-
-        };
-        fileReader.readAsArrayBuffer(file);
-    }
-
-    useEffect(()=>{
-        if(pdf){
-            pdf.getPage(pageNum).then((page)=> {
-                let viewport = page.getViewport({scale:1});
-                
-                // const width=560;
-                // const scale = width / viewport.width;
-                // viewport = page.getViewport({scale:scale});
-
-
-                whiteboardRef.current.height = viewport.height;
-                whiteboardRef.current.width = viewport.width;
-
-                const renderContext = {
-                    canvasContext: whiteboardRef.current.getContext("2d"),
-                    viewport: viewport
-                    };
-                page.render(renderContext);
-            })
-        }
-    },[pageNum,pdf]);
-
-    const nextPage=()=>{
-        if(pageNum < pdfTotalPages){
-            setPageNum(pageNum+1);
-        }
-    }
-    const prevPage=()=>{
-        if(pageNum > 1){
-            setPageNum(pageNum - 1);
-        }
     }
 
     const clearChat = ()=>{
@@ -863,16 +316,17 @@ export default function Room(props) {
         });
 
         socket.on("full-whiteboard-data",(dataArr)=>{ //recieve previously shared WB data
+            if(dataArr.length===0){
+                return
+            }
             whiteboardDataRef.current=dataArr;
-            setIsFullWbDataFetched(true);
             isPrevWBrecieved.current=true;
             fastplayImgs();
-            // setIsPreviousWhiteboardRecieved(true);
         });
 
         socket.on("whiteboard-data",(data)=>{
             let isPresenting=false;
-            setIsCanvasSharing(lastVal=>{
+            setIsWhiteboardSharing(lastVal=>{
                 if(lastVal){
                     isPresenting=true;
                 }
@@ -885,13 +339,13 @@ export default function Room(props) {
 
             if(isPresenting){
                 console.log('currently presenting');
-                setWbSender(data.sender); // will not rerender if sender doesn't changed
+                setWbSenderName(data.sender); // will not rerender if sender doesn't changed
             }
             else{
                 console.log('currently just watchin');
                 whiteboardImgRef.current.src=data.base64ImageData;
-                setWbSender(data.sender); // will not rerender if sender doesn't changed
-                setIsWhiteboardSharing(true);
+                setWbSenderName(data.sender); // will not rerender if sender doesn't changed
+                setIsWhiteboardRecieving(true);
             }
         });
         
@@ -969,13 +423,51 @@ export default function Room(props) {
     },[]);
     
 
+    const shareMicrophoneOnClick=()=>{
+        if(!selfStream){ // no video track no mic track
+            console.log('self stream was empty');
+            shareMicrophone();
+        }
+        else{
+            const hasAudio = selfStream.getAudioTracks().length !==0;
 
+            if(hasAudio){
+                console.log('has audio track so toggle audio')
+                toggleStreamTrack(selfStream,'audio',!isSelfMicSharing);
+                setIsMicSharing(!isSelfMicSharing)
+            }
+            else{
+                shareMicrophone();
+            }
+        }
+    }
+    const shareDesktopOnClick=()=>{
+        if(!selfStream){ // no video track no mic track
+            shareDesktop();
+        }
+        else{
+            const hasVideo = selfStream.getVideoTracks().length !==0;
+
+            if(hasVideo){
+                toggleStreamTrack(selfStream,'video',!isSelfDesktopSharing);
+                setIsSelfDesktopSharing(!isSelfDesktopSharing)
+            }
+            else{
+                shareDesktop();
+            }
+        }
+        
+    }
+
+    const toggleChats=()=>{
+        setShowChat(last=>!last);
+    }
     return (
         <Paper square className="container">
             <div className="main">
                 <form onSubmit={handleSubmit} className="formContainer">
                     <InputBase value={usernameInput} onChange={(e)=>{handleInput(e,setUsernameInput)}} required  placeholder="username..."/><br />
-                    <InputBase value={room} onChange={(e)=>{handleInput(e,setRoom)}} required placeholder="room..."/>
+                    <InputBase value={roomInput} onChange={(e)=>{handleInput(e,setRoomInput)}} required placeholder="room..."/>
                     <Button type="submit">Join</Button>
                 </form>
                 <div className={["streamsContainer",!showChat ? "expand" : ""].join(" ")} style={{gridTemplateColumns:`repeat(${Math.floor(Math.log( (selfStream ? 1 : 0)+streams.length ===1 ? 1 : (selfStream ? 1 : 0)+streams.length ) /Math.log(2))+1}, minmax(0, 1fr))`}}>
@@ -987,89 +479,12 @@ export default function Room(props) {
                         <img alt="whiteboard" ref={fastplayImgRef}/>
                     </div>
                     
-                    <div className="vidContainer self whiteboardContainer" style={{display:isCanvasSharing? "flex" : "none"}}>
+                    <div className="vidContainer self whiteboardContainer" style={{display:isWhiteboardSharing? "flex" : "none"}}>
+                        <Whiteboard isCanvasSharing={isWhiteboardSharing}/>
+                    </div>
                         
-                        <canvas width="560" height="360" className="vid" id="whiteboard" ref={whiteboardRef} ></canvas>
-                        <div className="buttonsContainer">
-                            <Tooltip title="Add Image" arrow>
-                                <Button component="label">
-                                    <ImageIcon />
-                                    <input type="file" onChange={handleImageInputChange} ref={fileInputRef} hidden/>
-                                </Button>
-                            </Tooltip>                           
-
-                            
-                            <Tooltip title="Add PDF" arrow>
-                                <Button component="label">
-                                    <PDFIcon />
-                                    <input type="file" onChange={handlePdfChange} ref={PdfInputRef} hidden/>
-                                </Button>
-                            </Tooltip>
-
-                            {
-                                pdf &&
-                                <>
-                                    <Tooltip title="Previous Page" arrow>
-                                        <Button onClick={prevPage} disabled={pageNum === 1} >
-                                            <NextArrow style={{transform:"rotate(180deg)"}} />
-                                        </Button>
-                                    </Tooltip>
-
-                                    <Tooltip title="Next Page" arrow>
-                                        <Button onClick={nextPage} disabled={pageNum === pdfTotalPages}>
-                                            <NextArrow />
-                                        </Button>
-                                    </Tooltip>
-                                </>
-                            }
-                            <Tooltip title="Line" arrow>
-                                <Button className={selectedCanvasButton===0 ? "selected" : ""} onClick={()=>{setSelectedCanvasButton(0);removeEvents(whiteboardRef.current);drawLine(whiteboardRef.current); }}>
-                                    <LineIcon />
-                                </Button>     
-                            </Tooltip>
-
-                                                
-                            <Tooltip title="Square" arrow>
-                                <Button className={selectedCanvasButton===1 ? "selected" : ""} onClick={()=>{setSelectedCanvasButton(1);removeEvents(whiteboardRef.current);drawRect(whiteboardRef.current); }}>
-                                    <SquareIcon />
-                                </Button>                            
-                            </Tooltip>
-                            
-                            <Tooltip title="Circle" arrow>
-                                <Button className={selectedCanvasButton===2 ? "selected" : ""} onClick={()=>{setSelectedCanvasButton(2);removeEvents(whiteboardRef.current);drawCircle(whiteboardRef.current); }}>
-                                    <CircleIcon />
-                                </Button>
-                            </Tooltip>
-
-                            <Tooltip title="Text" arrow>
-                                <Button className={selectedCanvasButton===3 ? "selected" : ""} onClick={()=>{setSelectedCanvasButton(3);removeEvents(whiteboardRef.current);drawText(whiteboardRef.current); }}>
-                                    <TextIcon />
-                                </Button>
-                            </Tooltip>
-                            
-                            <Tooltip title="Draw" arrow>
-                                <Button className={selectedCanvasButton===4 ? "selected" : ""} onClick={()=>{setSelectedCanvasButton(4);removeEvents(whiteboardRef.current);freehandDraw(whiteboardRef.current); }}>
-                                    <GestureIcon />
-                                </Button>                            
-                            </Tooltip>
-                            <Button onClick={()=>{clearCanvas(whiteboardRef.current)}}>
-                                Clear
-                            </Button>
-                            <ClickAwayListener onClickAway={()=>{setShowColorPicker(false)}} >
-                                <div className="cp" >
-                                    <Button onClick={()=>{setShowColorPicker(val=>!val)}}>
-                                        <ColorIcon/>
-                                    </Button>
-                                        <div className={["colorPickerContainer",showColorPicker ? "show" : ""].join(" ")} >
-                                            <BlockPicker color={pickedColor} width={170} onChangeComplete={setPickedColor} colors={colorsArr}/>
-                                        </div>
-                                </div>
-                            </ClickAwayListener>
-                            
-                        </div>
-                    </div> 
                     {
-                        selfStream && ! isCanvasSharing &&
+                        selfStream && ! isWhiteboardSharing &&
                         (<div className="vidContainer self">
                             <div className="username">You</div>
                             <video className="vid" ref={elem=>{if(elem) return elem.srcObject = selfStream}} muted autoPlay playsInline></video> 
@@ -1086,10 +501,8 @@ export default function Room(props) {
                             )
                         })
                     } 
-
-
-                    <div className={["whiteboardImgContainer",isWhiteboardSharing ? "show" : ""].join(" ")}>
-                        <div className="title">{wbSender}</div>
+                    <div className={["whiteboardImgContainer",isWhiteboardRecieving ? "show" : ""].join(" ")}>
+                        <div className="title">{wbSenderName}</div>
                         <img alt="whiteboard" ref={whiteboardImgRef} />
                     </div>                    
 
@@ -1098,107 +511,21 @@ export default function Room(props) {
             </div>
             <Drawer showChat={showChat} setShowChat={setShowChat}/>
                         
-            <Paper
-                className={classes.nav}
-            >
-                <div className="items">
-                    <Timer />
-                    | {roomName}
-                </div>
-                <div className="items center">
-                    <IconButton 
-                        onClick={()=>{
-                            if(!selfStream){ // no video track no mic track
-                                console.log('self stream was empty');
-                                shareMicrophone();
-                            }
-                            else{
-                                const hasAudio = selfStream.getAudioTracks().length !==0;
+            <Navbar 
+                roomName={roomName} 
+                isAdmin={self.isAdmin} 
+                micIsSharing={isSelfMicSharing}
+                desktopIsSharing={isSelfDesktopSharing} 
 
-                                if(hasAudio){
-                                    console.log('has audio track so toggle audio')
-                                    toggleStreamTrack(selfStream,'audio',!micIsSharing);
-                                    setMicIsSharing(!micIsSharing)
-                                }
-                                else{
-                                    shareMicrophone();
-                                }
-                            }
-                        }}
-                        aria-label="Share Microphone"
-                        className={!micIsSharing ? "redBackground" : ""}
-                    >
-                        { micIsSharing ? <MicrophoneIcon /> : <MicrophoneDisableIcon/> }
-                    </IconButton>                
-                    
-                    <IconButton 
-                        onClick={()=>{
-                            if(!selfStream){ // no video track no mic track
-                                shareDesktop();
-                            }
-                            else{
-                                const hasVideo = selfStream.getVideoTracks().length !==0;
-
-                                if(hasVideo){
-                                    toggleStreamTrack(selfStream,'video',!desktopIsSharing);
-                                    setDesktopIsSharing(!desktopIsSharing)
-                                }
-                                else{
-                                    shareDesktop();
-                                }
-                            }
-                        }}
-                        aria-label="Share Desktop" 
-                        className={!desktopIsSharing ? "redBackground" : ""}
-                    >
-                        {desktopIsSharing ? <DesktopIcon /> : <DesktopDesableIcon/>}
-                    </IconButton>                    
-                    
-                    <IconButton onClick={shareWhiteboard}>
-                        <PenIcon />
-                    </IconButton>
-                    
-                    <IconButton onClick={fastplay} >
-                        <FastForwardIcon />
-                    </IconButton>
-
-                    {
-                        self.isAdmin &&
-                        <ClickAwayListener onClickAway={()=>setShowMore(false)}>
-                            <div className="moreContainer">
-                                <IconButton onClick={()=>{setShowMore(last=>!last)}}>
-                                    <MoreIcon />
-                                </IconButton>
-                                    <List className={["moreList",showMore ? "show" : ""].join(" ")} >
-                                        <ListItem button className="listItem" onClick={exportChatMessages}> Export Room Chats </ListItem>
-                                        <ListItem button className="listItem" onClick={exportUsersActivity}>Export Users Activity</ListItem>
-                                    </List>
-                            </div>
-                        </ClickAwayListener>
-                    }
-
-                    <IconButton aria-label="hangup" className="redBackground"  >
-                        <HangupIcon />
-                    </IconButton>
-                </div>
-
-                <div className="items right">
-                    {
-                        self.isAdmin &&
-                        (<IconButton onClick={clearChat} >
-                            <ClearIcon />
-                        </IconButton>)
-                    }
-                    <IconButton aria-label="open chats" onClick={()=>{setShowChat(last=>!last)}} >
-                        <ChatIcon  />
-                    </IconButton>
-                </div>
-
-                {/* <IconButton onClick={()=>{props.setDarkTheme(!props.darkTheme)}} aria-label="theme">
-                    { props.darkTheme ? <SunIcon/> : <MoonIcon /> } 
-                </IconButton>                */}
-            </Paper>
-
+                exportUsersActivity={exportUsersActivity} 
+                exportChatMessages={exportChatMessages} 
+                toggleChats={toggleChats} 
+                fastplay={fastplay} 
+                clearChat={clearChat} 
+                shareWhiteboard={shareWhiteboard} 
+                shareDesktopOnClick={shareDesktopOnClick} 
+                shareMicrophoneOnClick={shareMicrophoneOnClick} 
+            />
         </Paper>
     )
 }
@@ -1237,3 +564,25 @@ export default function Room(props) {
 //     vidElem.srcObject = null;
 // }
 
+    // const shareWebcam = async()=>{
+    //     const tempStream = await captureWebcam();
+        
+    //     for(const key in connectionsRef.current){
+    //         tempStream.getTracks().forEach((track)=>{
+    //             connectionsRef.current[key].addTrack(track,tempStream);
+    //         });
+    //     }
+    //     setSelfStream(tempStream);
+    // }
+
+    // const captureWebcam=()=> {
+//     return new Promise((resolve,reject) => {
+//         navigator.mediaDevices.getUserMedia({video:true,audio:true})
+//         .then(currentStream=>{
+//             resolve(currentStream);
+//         })
+//         .catch(() =>{
+//             reject();
+//         })
+//     });
+// }

@@ -6,7 +6,8 @@ fix canvas size and resize
 hide whiteboard if whiteboard sharer disconnected or user disable whiteboard
 
 move canvas toolbar to top of canvas
-improve fast forward functionality
 set resolution for share streams when deploy
 
+create login page
 add notification service to show connection & etc.
+
