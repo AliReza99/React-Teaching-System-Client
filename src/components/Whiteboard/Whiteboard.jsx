@@ -42,7 +42,7 @@ const isFileImage = (file)=> {
     return file && file['type'].split('/')[0] === 'image';
 }
 
-const Whiteboard = memo(({isCanvasSharing}) => {
+const Whiteboard = memo(({isSharing}) => {
     const whiteboardRef=useRef(null);
     const [selectedCanvasButton,setSelectedCanvasButton] = useState(4);
     const [showColorPicker,setShowColorPicker]=useState(false);
@@ -147,7 +147,7 @@ const Whiteboard = memo(({isCanvasSharing}) => {
     },[pageNum,pdf]);
 
     useEffect(()=>{
-        if(isCanvasSharing){
+        if(isSharing){
             clearCanvas(whiteboardRef.current);
             freehandDraw(whiteboardRef.current); //set freehand event as default draw method    
     
@@ -163,7 +163,7 @@ const Whiteboard = memo(({isCanvasSharing}) => {
                 window.clearInterval(intervalID.current);
             }
         }
-    },[isCanvasSharing]);
+    },[isSharing]);
     
     return (
     <>

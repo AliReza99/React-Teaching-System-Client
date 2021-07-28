@@ -5,7 +5,7 @@ import {
     ListItem,
     Paper,
     IconButton,
-    
+    Button
 } from "@material-ui/core";
 import {makeStyles} from "@material-ui/core/styles";
 
@@ -87,7 +87,7 @@ const Timer = memo(()=>{
     )
 })
 
-const Navbar=({exportUsersActivity,exportChatMessages,toggleChats,clearChat,isAdmin,roomName,shareWhiteboard,fastplay,shareMicrophoneOnClick,micIsSharing,shareDesktopOnClick,desktopIsSharing})=>{
+const Navbar=({shareWhiteboardClick,exportUsersActivity,exportChatMessages,toggleChats,clearChat,isAdmin,roomName,fastplay,shareMicrophoneOnClick,micIsSharing,shareDesktopOnClick,desktopIsSharing})=>{
     const [showMore,setShowMore] = useState(false);
     
     const classes=useStyle();
@@ -117,7 +117,7 @@ const Navbar=({exportUsersActivity,exportChatMessages,toggleChats,clearChat,isAd
                 {desktopIsSharing ? <DesktopIcon /> : <DesktopDesableIcon/>}
             </IconButton>                    
             
-            <IconButton onClick={shareWhiteboard}>
+            <IconButton onClick={shareWhiteboardClick}>
                 <PenIcon />
             </IconButton>
             
@@ -156,6 +156,10 @@ const Navbar=({exportUsersActivity,exportChatMessages,toggleChats,clearChat,isAd
                 <ChatIcon  />
             </IconButton>
         </div>
+
+        {/* <Button onClick={handleWhiteboardClick}>
+            disconnect whiteboard
+        </Button> */}
 
     </Paper>
     )

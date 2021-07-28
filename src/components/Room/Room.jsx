@@ -226,9 +226,7 @@ export default function Room(props) {
         setIsSelfDesktopSharing(true);
     }
 
-    const shareWhiteboard=()=>{
-        setIsWhiteboardSharing(last=>!last);
-    }
+
 
     const requestPrevWhiteboardData=()=>{
         socket.emit("full-whiteboard-data");
@@ -315,6 +313,10 @@ export default function Room(props) {
             setRoomName(data.roomName);
         });
 
+        socket.on('disconnect-whiteboard',()=>{
+            setIsWhiteboardRecieving(false);
+        })
+        
         socket.on("full-whiteboard-data",(dataArr)=>{ //recieve previously shared WB data
             if(dataArr.length===0){
                 return
@@ -339,7 +341,7 @@ export default function Room(props) {
 
             if(isPresenting){
                 console.log('currently presenting');
-                setWbSenderName(data.sender); // will not rerender if sender doesn't changed
+                setWbSenderName(data.sender); // does is need to be there ?
             }
             else{
                 console.log('currently just watchin');
@@ -458,10 +460,28 @@ export default function Room(props) {
         }
         
     }
+    // const shareWhiteboard=()=>{
+    //     setIsWhiteboardSharing(true);
+    // }
+    // const disconnectWhiteboard=()=>{
+    //     socket.emit("disconnect-whiteboard");
+    // }
 
+    const handleWhiteboardClick=()=>{
+        if(isWhiteboardSharing){
+            setIsWhiteboardSharing(false);
+            socket.emit("disconnect-whiteboard");
+        }
+        else{
+            setIsWhiteboardSharing(true);
+
+        }
+    }
+    
     const toggleChats=()=>{
         setShowChat(last=>!last);
     }
+
     return (
         <Paper square className="container">
             <div className="main">
@@ -480,7 +500,7 @@ export default function Room(props) {
                     </div>
                     
                     <div className="vidContainer self whiteboardContainer" style={{display:isWhiteboardSharing? "flex" : "none"}}>
-                        <Whiteboard isCanvasSharing={isWhiteboardSharing}/>
+                        <Whiteboard isSharing={isWhiteboardSharing}/>
                     </div>
                         
                     {
@@ -524,9 +544,9 @@ export default function Room(props) {
                 toggleChats={toggleChats} 
                 fastplay={fastplay} 
                 clearChat={clearChat} 
-                shareWhiteboard={shareWhiteboard} 
                 shareDesktopOnClick={shareDesktopOnClick} 
                 shareMicrophoneOnClick={shareMicrophoneOnClick} 
+                shareWhiteboardClick={handleWhiteboardClick}
             />
         </Paper>
     )
