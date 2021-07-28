@@ -87,24 +87,7 @@
 .answer{
     color: #26C6DA;
 }
-.replyContainer{
-    padding: 10px 7px;
-    text-overflow: ellipsis;
-    overflow: hidden;
-    white-space: nowrap;
-    display: flex;
-    align-items: center;
-    font-weight: 900;
-    color: #64B5F6;
-    .text{
-        flex: 1 1 0;
-        // color: #999;
-        // cursor: pointer;
-    }
-}
-.rating{
-    margin-top:10px;
-}
+
 .selected{
     background-color: #eee !important;
     color: #000 !important;
@@ -140,9 +123,10 @@
     flex-direction: column;
     justify-content: center;
     visibility: hidden;
-    img{
-        width: 100%;
-    }
+    background: #f00;
+    // img{
+    //     width: 100%;
+    // }
     &.show{
         visibility: visible;
     }
@@ -155,6 +139,15 @@
         font-size: 1.3em;
         background-color: rgba(0,0,0,.7);
         text-align: center;
+    }
+    .imageContainer{
+        display: flex;
+        max-height: 800px;
+        overflow: hidden;
+
+        img{
+            max-height: 100%;
+        }
     }
 }
 .fastplayContainer{

@@ -1,5 +1,6 @@
 import React,{useState,memo} from 'react';
 import Rating from '@material-ui/lab/Rating';
+import "./ChatListItem.scss";
 import {
     ListItemSecondaryAction,
     ListItem,
@@ -11,14 +12,17 @@ const ChatListItem = memo(({id,role,onClick,text,date,sender,hardness,repliedTex
     let isButton= false;
     const classes=[];
     let primaryText;
+    let secondaryText = "";
     if(role==="question"){
         isButton= true;
         classes.push("question");
-        primaryText=`Question (Hardness: ${hardness})`;
+        primaryText=`Question `;
+        secondaryText = `(Hardness: ${hardness})`;
     }
     else if(role==="answer"){
         classes.push("answer");
-        primaryText=`${sender} (Replied to: ${repliedText})`;
+        primaryText=`${sender} `;
+        secondaryText = `(Replied to: ${repliedText})`;
     }
     else{
         primaryText=sender;
@@ -29,10 +33,11 @@ const ChatListItem = memo(({id,role,onClick,text,date,sender,hardness,repliedTex
         <ListItem 
             button={isButton} 
             onClick={onClick}
+            className="listItem"
         >
             <ListItemText 
                 className={classes.join(" ")}
-                primary={primaryText}
+                primary={<Typography component="div">{primaryText} <span className="caption">{secondaryText}</span> </Typography>}
                 secondary={
                     <>
                         <Typography component="span" style={{display:"block"}} variant={"body2"} noWrap color="textSecondary" >

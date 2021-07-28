@@ -503,7 +503,9 @@ export default function Room(props) {
                     } 
                     <div className={["whiteboardImgContainer",isWhiteboardRecieving ? "show" : ""].join(" ")}>
                         <div className="title">{wbSenderName}</div>
-                        <img alt="whiteboard" ref={whiteboardImgRef} />
+                        <div className="imageContainer">
+                            <img alt="whiteboard" ref={whiteboardImgRef} />
+                        </div>
                     </div>                    
 
                 </div>
