@@ -97,9 +97,9 @@ export default function Room(props) {
     const [isSelfDesktopSharing,setIsSelfDesktopSharing]=useState(false);
     const [isSelfMicSharing,setIsMicSharing]=useState(false);
     
-
     const [streams,setStreams]= useState([]);
     const [selfStream,setSelfStream] = useState(null);
+    const [showStreams,setShowStreams] = useState(true);
     
     const [isShowFastplay,setIsShowFastplay] = useState(false);
     const [fastplaySender,setFastplaySender] = useState("");
@@ -484,10 +484,13 @@ export default function Room(props) {
     const toggleChats=()=>{
         setShowChat(last=>!last);
     }
+    const toggleStreams=()=>{
+        setShowStreams(last=>!last);
+    }
 
     return (
         <Paper square className="container">
-            <div className="main">
+            <div>
                 <form onSubmit={handleLogin} className={["loginForm",showLogin ? "show" : ""].join(" ")}>
                     <InputBase value={usernameInput} onChange={(e)=>{handleInput(e,setUsernameInput)}} required  placeholder="username..."/><br />
                     <InputBase value={roomInput} onChange={(e)=>{handleInput(e,setRoomInput)}} required placeholder="room..."/>
@@ -497,51 +500,59 @@ export default function Room(props) {
 
 
                 
-                <div className={["streamsContainer",!showChat ? "expand" : ""].join(" ")} style={{gridTemplateColumns:`repeat(${Math.floor(Math.log( (selfStream ? 1 : 0)+streams.length ===1 ? 1 : (selfStream ? 1 : 0)+streams.length ) /Math.log(2))+1}, minmax(0, 1fr))`}}>
+                <div className={["main",!showChat ? "expand" : ""].join(" ")} 
+                    // style={{gridTemplateColumns:`repeat(${Math.floor(Math.log( (selfStream ? 1 : 0)+streams.length ===1 ? 1 : (selfStream ? 1 : 0)+streams.length ) /Math.log(2))+1}, minmax(0, 1fr))`}}
+                >
+                    <div className={["whiteboard","send",isWhiteboardSharing ? "show" : ""].join(" ")}>
+                        <Whiteboard isSharing={isWhiteboardSharing}/>
+                    </div>
 
-                    <div className={`fastplayContainer ${isShowFastplay ? "show" : "" }`}>
+                    <div className={["whiteboard","recieve",isWhiteboardRecieving ? "show" : ""].join(" ")}>
+                        <div className="title">{wbSenderName}</div>
+                        <div className="imageContainer">
+                            <img alt="" draggable="false" ref={whiteboardImgRef} />
+                        </div>
+                    </div>     
+
+                    {/* Fastplay  */}
+                    <div className={["fastplayContainer",isShowFastplay ? "show" : ""].join(" ") }>
                         <div className="title"> Whiteboard Replay from: <span>{fastplaySender}</span> </div>
                         <IconButton className="closeIconContainer"  onClick={()=>{setIsShowFastplay(false)}} >
                             <CloseIcon fontSize="large"/>
                         </IconButton>
                         <div className="imageContainer">
-                            <img alt="whiteboard" ref={fastplayImgRef}/>
+                            <img alt="whiteboard" draggable="false" ref={fastplayImgRef}/>
                         </div>
                     </div>
-                
-                    
-                    {/* <div className="vidContainer self whiteboardContainer" style={{display:isWhiteboardSharing? "flex" : "none"}}> */}
-                    <div className="" style={{display:isWhiteboardSharing? "flex" : "none"}}>
-                        <Whiteboard isSharing={isWhiteboardSharing}/>
-                    </div>
-                        
-                    {
-                        selfStream && ! isWhiteboardSharing &&
-                        (<div className="vidContainer self">
-                            <div className="username">You</div>
-                            <video className="vid" ref={elem=>{if(elem) return elem.srcObject = selfStream}} muted autoPlay playsInline></video> 
-                        </div>)
-                    }
-                    {
-                        streams.map(({stream,username})=>{
-                            
-                            return (
-                                <div className="vidContainer" key={stream.id}>
-                                    <div className="username">{username} </div>
-                                    <video className="vid"  ref={elem=>{if(elem) return elem.srcObject=stream}} autoPlay playsInline></video>
-                                </div>                    
-                            )
-                        })
-                    } 
-                    <div className={["whiteboardImgContainer",isWhiteboardRecieving ? "show" : ""].join(" ")}>
-                        <div className="title">{wbSenderName}</div>
-                        <div className="imageContainer">
-                            <img alt="whiteboard" ref={whiteboardImgRef} />
-                        </div>
-                    </div>                    
 
                 </div>
                 
+            </div>
+            <div className={["streamsContainer",showStreams ? "show" : ""].join(" ")} >
+                <div className="title" >
+                    Streams 
+                </div>
+                {
+                    selfStream &&
+                    (<div className="stream self">
+                        <div className="username">You</div>
+                        <div className="vidContainer" >
+                            <video className="vid" ref={elem=>{if(elem) return elem.srcObject = selfStream}} muted autoPlay playsInline></video> 
+                        </div>
+                    </div>)
+                }                
+                {
+                    streams.map(({stream,username})=>{
+                        return (
+                            <div className="stream" key={stream.id}>
+                                <div className="username">{username} </div>
+                                <div className="vidContainer" >
+                                    <video className="vid"  ref={elem=>{if(elem) return elem.srcObject=stream}} autoPlay playsInline></video>
+                                </div>
+                            </div>                    
+                        )
+                    })
+                }
             </div>
             <Drawer showChat={showChat} setShowChat={setShowChat}/>
                         
@@ -555,6 +566,8 @@ export default function Room(props) {
                 exportChatMessages={exportChatMessages} 
                 toggleChats={toggleChats} 
                 clearChat={clearChat} 
+
+                toggleStreams={toggleStreams}
                 
                 fastplayClick={fastplayClick} 
                 shareDesktopOnClick={shareDesktopOnClick} 

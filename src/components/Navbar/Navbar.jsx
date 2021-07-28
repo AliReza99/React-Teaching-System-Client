@@ -5,7 +5,7 @@ import {
     ListItem,
     Paper,
     IconButton,
-    Button
+    // Button
 } from "@material-ui/core";
 import {makeStyles} from "@material-ui/core/styles";
 
@@ -20,6 +20,7 @@ import {
     FastForwardRounded as FastForwardIcon,
     ClearAll as ClearIcon,
     MoreVert as MoreIcon,
+    Duo as StreamsIcon
 
 } from "@material-ui/icons";
 
@@ -87,7 +88,7 @@ const Timer = memo(()=>{
     )
 })
 
-const Navbar=({shareWhiteboardClick,exportUsersActivity,exportChatMessages,toggleChats,clearChat,isAdmin,roomName,fastplayClick,shareMicrophoneOnClick,micIsSharing,shareDesktopOnClick,desktopIsSharing})=>{
+const Navbar=({toggleStreams,shareWhiteboardClick,exportUsersActivity,exportChatMessages,toggleChats,clearChat,isAdmin,roomName,fastplayClick,shareMicrophoneOnClick,micIsSharing,shareDesktopOnClick,desktopIsSharing})=>{
     const [showMore,setShowMore] = useState(false);
     
     const classes=useStyle();
@@ -154,6 +155,9 @@ const Navbar=({shareWhiteboardClick,exportUsersActivity,exportChatMessages,toggl
             }
             <IconButton aria-label="open chats" onClick={toggleChats} >
                 <ChatIcon  />
+            </IconButton>            
+            <IconButton aria-label="open streams" onClick={toggleStreams} >
+                <StreamsIcon  />
             </IconButton>
         </div>
 

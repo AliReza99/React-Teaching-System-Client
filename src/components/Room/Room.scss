@@ -1,77 +1,126 @@
-.loginForm {
-    // background-color: #000;
-    position: absolute;
-    background-color: #222;
-    z-index: 999;
-    top: 0;
-    left: 0;
-    visibility: hidden;
 
-    &.show{
-        visibility: visible;
-    }
-    
-}
 
 
 * {
     box-sizing: border-box;
 }
 
-.streamsContainer {
+.main {
     width: calc(100vw - 420px);
     height: calc(100vh - 65px);
     overflow: hidden;
     position: relative;
-    padding: 10px;
-    display: grid;
-    grid-template-rows: auto;
-    grid-template-columns: auto;
-    gap: 10px;
     transition: width .4s;
-    
+    display: flex;
     &.expand{
         width: 100%;        
     }
 
-    .vidContainer {
-        display: flex;
-        min-height: 100px;
-        min-width: 150px;
-        position: relative;
-        video {
-            border: 3px solid rgba(0,0,0,.2);
-            border-radius: 4px;
+    .whiteboard{
+        flex-direction: column;
+        display: none;
+        justify-content: center;
+        align-items: center;
+
+        &.show{
+            display: flex;
             width: 100%;
         }
-        .username{
-            padding: .8% 0 1.5% 0;
-            background: rgb(0,0,0);
-            background: linear-gradient(180deg, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.4) 40%, rgba(0,212,255,0) 100%);            position: absolute;
+    }
+    .send{
+        align-items: center;
+        height: 100%;
+        display: none;        
+    }
+
+    .recieve{
+        .title{
+            position: absolute;
             top: 0;
             left: 0;
             width: 100%;
+            padding: 10px;
+            font-size: 1.3em;
+            background-color: rgba(0,0,0,.7);
             text-align: center;
-            font-size: 1.5em;
-            
         }
-        &.self{
-            video {
-                border: 3px solid #01579B;
+        .imageContainer{
+            display: flex;
+            overflow: hidden;
+            width: 100%;
+            img{
+                width: 100%;
+                max-height: 80vh;
+                object-fit: contain;
             }
-            
         }
     }
+    
+    
+    
+    // .streamsContainer{
+    //     &.shrink{
+    //         display: none;
+    //         flex-direction: column;
+    //         background-color: rgba(0,255,0,.1);
+    //         width: 500px;
+
+    //     }
+    //     &.expand{
+    //         background-color: rgba(0,255,255,.1);
+    //         width: 100%;
+    //         justify-content: center;
+    //         flex-direction: row;
+    //         flex-wrap: wrap;
+    //         .stream{
+    //             width: 50%;
+    //             margin-bottom: 0;
+    //         }
+    //     }
+    //     &.show{
+    //         display: flex;
+    //     }
+
+    //     .stream{
+    //         position: relative;
+    //         display: flex;
+    //         justify-content: center;
+    //         align-items: center;
+    //         margin-bottom: 10px;
+    //         width: 100%;
+
+    //         video {
+    //             border: 3px solid rgba(0,0,0,.2);
+    //             border-radius: 4px;
+    //             width: 100%;
+    //         }
+    //         .username{
+
+    //             padding: .8% 0 1.5% 0;
+    //             background: rgb(0,0,0);
+    //             background: linear-gradient(180deg, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.4) 40%, rgba(0,212,255,0) 100%);            position: absolute;
+    //             top: 0;
+    //             left: 0;
+    //             width: 100%;
+    //             text-align: center;
+    //             font-size: 1.2em;
+    //         }
+            
+    //         &.self{
+    //             video {
+    //                 border: 3px solid #01579B;
+    //             }
+    //         }
+    //     }
+    // }
+    
+    
+    
+    
+    
+
 
 }
-// #whiteboard{
-    // border: 1px solid #000;
-//     border: 1px solid #f00;
-//     width: 400px;
-//     height: 400px;
-    // width: 560px;
-    // height: 360px;
-// }
 
 .msgMode{
     display: flex;
@@ -98,40 +147,9 @@
         font-style: normal;
     }
 }
-.whiteboardImgContainer{
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    visibility: hidden;
-    // background: #f00;
-    // img{
-    //     width: 100%;
-    // }
-    &.show{
-        visibility: visible;
-    }
-    .title{
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        padding: 10px;
-        font-size: 1.3em;
-        background-color: rgba(0,0,0,.7);
-        text-align: center;
-    }
-    .imageContainer{ ///////////
-        display: flex;
-        max-height: 800px;
-        overflow: hidden;
 
-        img{
-            max-height: 100%;
-        }
-    }
-}
 .fastplayContainer{
-    background-color: rgba(0,0,0,.8);
+    background-color: rgba(0,0,0,1);
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -147,7 +165,7 @@
     &.show{
         visibility: visible;
     }
-    .imageContainer{
+    .imageContainer{////
         display: flex;
         justify-content: center;
         align-items: center;
@@ -157,7 +175,7 @@
             border: 3px solid #aaa;
             border-radius: 5px;
         }
-    }
+    }///
     .title{
         position: absolute;
         top: 0;
@@ -208,4 +226,94 @@
             padding: 12px 15px;
         }
     }
+}
+
+
+.loginForm {
+    // background-color: #000;
+    position: absolute;
+    background-color: #222;
+    z-index: 999;
+    top: 0;
+    left: 0;
+    visibility: hidden;
+
+    &.show{
+        visibility: visible;
+    }
+    
+}
+
+.streamsContainer{
+    background-color: #262829;
+
+    display: flex;
+    position: fixed;
+    flex-direction: column;
+    padding: 60px 10px;
+    
+    width: 400px;
+    height:calc(100vh - 65px);
+    left: 0;
+    top: 0;
+    overflow-y: scroll;
+
+    transform: translateX(-10%);
+    visibility: hidden;
+    opacity: 0;
+    transition:opacity .2s, transform .2s , visibility .15s;
+    &.show{
+        opacity: 1;
+        transform: translateX(0);
+        visibility: visible;
+    }
+    .title{
+        top: 0;
+        position: absolute;
+        left: 0;
+        width: 100%;
+        font-weight: 900;
+        opacity: .9;
+        padding: 10px;
+        display: flex;
+        justify-content: center;
+        font-size: 1.2em;
+    }
+    .stream{
+        position: relative;
+        
+        background-color: #000;
+        width: 100%;
+        margin-bottom: 20px;
+        
+        .vidContainer{
+            width: 100%;
+            overflow: hidden;
+            display: flex;
+            video{
+                border: 3px solid #01579B;
+                border-radius: 10px;
+                width: 100%;
+            }
+        }
+        .username{
+            
+            background: rgb(0,0,0);
+            background: linear-gradient(180deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.5) 40%, rgba(0,212,255,0) 100%);
+
+            border: 3px solid #01579B;
+            border-radius: 10px;
+            border-bottom: hidden;
+            position: absolute;
+            padding: 5px 0;
+            left: 0;
+            width: 100%;
+            font-size: 1.2em;
+            font-weight: 900;
+            text-align: center;
+        }
+    }
+
+
+
 }
