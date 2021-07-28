@@ -1,10 +1,16 @@
-.formContainer {
+.loginForm {
     // background-color: #000;
     position: absolute;
     background-color: #222;
     z-index: 999;
     top: 0;
     left: 0;
+    visibility: hidden;
+
+    &.show{
+        visibility: visible;
+    }
+    
 }
 
 
@@ -66,17 +72,7 @@
     // width: 560px;
     // height: 360px;
 // }
-.whiteboardContainer{
-    position: relative;
-    .buttonsContainer{
-        display: flex;
-        position: absolute;
-        // top: 360px;
-        bottom: 0;
-        left: 0;
-        background-color: #333;
-    }
-}
+
 .msgMode{
     display: flex;
     align-items: center;
@@ -92,23 +88,7 @@
     background-color: #eee !important;
     color: #000 !important;
 }
-.cp{
-    position: relative;
-    .colorPickerContainer{
-        position: absolute;
-        left: calc(-85px + 50%);
-        top: 60px;
-        opacity: 0;
-        visibility: hidden;
-        transition: visibility .3s ,opacity .3s ,top .2s;
-        &.show{
-            visibility: visible;
-            opacity: 1;    
-            top: calc(100% + 10px);
-        }
-    }
 
-}
 .selfUserContainer{
     font-style:italic;
     .caption{
@@ -167,7 +147,17 @@
     &.show{
         visibility: visible;
     }
+    .imageContainer{
+        display: flex;
+        justify-content: center;
+        align-items: center;
 
+        img{
+            overflow: hidden;
+            border: 3px solid #aaa;
+            border-radius: 5px;
+        }
+    }
     .title{
         position: absolute;
         top: 0;

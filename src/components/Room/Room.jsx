@@ -3,6 +3,7 @@ import "./Room.scss";
 import Drawer from "../Drawer/Drawer";
 import Whiteboard from "../Whiteboard/Whiteboard";
 import Navbar from "../Navbar/Navbar";
+// import { useSnackbar } from 'notistack';
 import {
     Paper,
     InputBase,
@@ -86,13 +87,15 @@ const captureScreen=()=>{
 }
 
 export default function Room(props) {
+    // States
     const [roomInput,setRoomInput] = useState("room1");
     const [usernameInput,setUsernameInput] = useState("");
     
+    const [showLogin,setShowLogin] = useState(true); //////////////true
+    const [isWhiteboardSharing,setIsWhiteboardSharing]=useState(false); //// false
 
     const [isSelfDesktopSharing,setIsSelfDesktopSharing]=useState(false);
     const [isSelfMicSharing,setIsMicSharing]=useState(false);
-    const [isWhiteboardSharing,setIsWhiteboardSharing]=useState(false);
     
 
     const [streams,setStreams]= useState([]);
@@ -106,6 +109,7 @@ export default function Room(props) {
     const [roomName,setRoomName] = useState("");
     const [showChat,setShowChat] = useState(true);
     
+    // Refs
     const isPrevWBrecieved=useRef(false);
     const connectionsRef=useRef({});
     const whiteboardImgRef= useRef(null);
@@ -113,9 +117,14 @@ export default function Room(props) {
     const whiteboardDataRef=useRef([]);
     const isFastplayPlaying= useRef(false);
     
+    // Recoils
     const socket = useRecoilValue(socketState);
     const setUsers = useSetRecoilState(usersState);
     const [self,setSelf] = useRecoilState(selfState);
+
+    // snackbar
+    // const { enqueueSnackbar } = useSnackbar();
+
     
     const handleNegotiationNeeded=async(pc)=> {
         const offer=await pc.createOffer();
@@ -254,7 +263,7 @@ export default function Room(props) {
         }
         isFastplayPlaying.current=false; //release fastplay button action
     }
-    const fastplay=()=>{
+    const fastplayClick=()=>{
         if(isPrevWBrecieved.current){
             fastplayImgs();
         }
@@ -264,13 +273,13 @@ export default function Room(props) {
         
     }
 
-    const handleSubmit=(e)=>{
+    const handleLogin=(e)=>{
         e.preventDefault();
         socket.emit('join-room',{
             username:usernameInput,
             roomID:roomInput
         });
-        // setIsJoinedRoom(true);
+        setShowLogin(false);
     }
 
     const handleInput=(e,setter)=>{
@@ -460,12 +469,6 @@ export default function Room(props) {
         }
         
     }
-    // const shareWhiteboard=()=>{
-    //     setIsWhiteboardSharing(true);
-    // }
-    // const disconnectWhiteboard=()=>{
-    //     socket.emit("disconnect-whiteboard");
-    // }
 
     const handleWhiteboardClick=()=>{
         if(isWhiteboardSharing){
@@ -485,21 +488,30 @@ export default function Room(props) {
     return (
         <Paper square className="container">
             <div className="main">
-                <form onSubmit={handleSubmit} className="formContainer">
+                <form onSubmit={handleLogin} className={["loginForm",showLogin ? "show" : ""].join(" ")}>
                     <InputBase value={usernameInput} onChange={(e)=>{handleInput(e,setUsernameInput)}} required  placeholder="username..."/><br />
                     <InputBase value={roomInput} onChange={(e)=>{handleInput(e,setRoomInput)}} required placeholder="room..."/>
                     <Button type="submit">Join</Button>
                 </form>
+
+
+
+                
                 <div className={["streamsContainer",!showChat ? "expand" : ""].join(" ")} style={{gridTemplateColumns:`repeat(${Math.floor(Math.log( (selfStream ? 1 : 0)+streams.length ===1 ? 1 : (selfStream ? 1 : 0)+streams.length ) /Math.log(2))+1}, minmax(0, 1fr))`}}>
+
                     <div className={`fastplayContainer ${isShowFastplay ? "show" : "" }`}>
                         <div className="title"> Whiteboard Replay from: <span>{fastplaySender}</span> </div>
                         <IconButton className="closeIconContainer"  onClick={()=>{setIsShowFastplay(false)}} >
                             <CloseIcon fontSize="large"/>
                         </IconButton>
-                        <img alt="whiteboard" ref={fastplayImgRef}/>
+                        <div className="imageContainer">
+                            <img alt="whiteboard" ref={fastplayImgRef}/>
+                        </div>
                     </div>
+                
                     
-                    <div className="vidContainer self whiteboardContainer" style={{display:isWhiteboardSharing? "flex" : "none"}}>
+                    {/* <div className="vidContainer self whiteboardContainer" style={{display:isWhiteboardSharing? "flex" : "none"}}> */}
+                    <div className="" style={{display:isWhiteboardSharing? "flex" : "none"}}>
                         <Whiteboard isSharing={isWhiteboardSharing}/>
                     </div>
                         
@@ -542,8 +554,9 @@ export default function Room(props) {
                 exportUsersActivity={exportUsersActivity} 
                 exportChatMessages={exportChatMessages} 
                 toggleChats={toggleChats} 
-                fastplay={fastplay} 
                 clearChat={clearChat} 
+                
+                fastplayClick={fastplayClick} 
                 shareDesktopOnClick={shareDesktopOnClick} 
                 shareMicrophoneOnClick={shareMicrophoneOnClick} 
                 shareWhiteboardClick={handleWhiteboardClick}

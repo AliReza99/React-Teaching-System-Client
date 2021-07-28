@@ -1,21 +1,15 @@
 import React,{memo,useRef,useState,useEffect} from 'react';
 import { BlockPicker } from 'react-color';
 import {useRecoilValue} from "recoil";
+import "./Whiteboard.scss";
 import {socketState} from "../../Atoms/Atoms";
 import {
     Tooltip,
     Button,
+    IconButton,
     ClickAwayListener,
 } from "@material-ui/core";
-import {
-    drawText,
-    drawCircle,
-    drawLine,
-    drawRect,
-    freehandDraw,
-    clearCanvas,
-    setCanvasColors
-} from "../../scripts/canvasDraw";
+
 import {
     Gesture as GestureIcon,
     ShowChartTwoTone as LineIcon,
@@ -28,7 +22,15 @@ import {
     NavigateNextRounded as NextArrow,
 
 } from "@material-ui/icons";
-
+import {
+    drawText,
+    drawCircle,
+    drawLine,
+    drawRect,
+    freehandDraw,
+    clearCanvas,
+    setCanvasColors
+} from "../../scripts/canvasDraw";
 
 const colorsArr=["#000000","#E53935","#CFD8DC","#8E24AA","#303F9F","#0097A7","#FFEB3B","#76FF03","#4FC3F7","#CE93D8"]; // colors for canvas draw
 const removeEvents=(element)=>{
@@ -43,22 +45,35 @@ const isFileImage = (file)=> {
 }
 
 const Whiteboard = memo(({isSharing}) => {
-    const whiteboardRef=useRef(null);
     const [selectedCanvasButton,setSelectedCanvasButton] = useState(4);
     const [showColorPicker,setShowColorPicker]=useState(false);
     const [pdf,setPdf]=useState(null);
     const [pdfTotalPages,setPdfTotalPages] = useState(0);
     const [pageNum,setPageNum] = useState(null);
     const [pickedColor,setPickedColor]= useState(colorsArr[0]);
-
+    
+    const whiteboardRef=useRef(null);
     const fileInputRef=useRef(null);
     const PdfInputRef= useRef(false);
     const intervalID= useRef(null);
+    const canvasContainerRef= useRef(null);
+    const rootRef= useRef(null);
 
     const socket = useRecoilValue(socketState);
 
 
+    const resizeCanvas=(width=800,height=700)=>{
+        whiteboardRef.current.width= width;
+        whiteboardRef.current.height= height;
 
+        const parentWidth= rootRef.current.width;
+        const parentHeight= rootRef.current.height;
+
+        const whiteboardWidth = whiteboardRef.current.width;
+        const whiteboardHeight = whiteboardRef.current.height;
+        console.log(`parent size: ${parentWidth}x${parentHeight}`);
+        console.log(`whiteboard size: ${whiteboardWidth}x${whiteboardHeight}`);
+    }
 
     const handleImageInputChange=()=>{
         const file = fileInputRef.current.files[0];
@@ -67,6 +82,13 @@ const Whiteboard = memo(({isSharing}) => {
             return;
         }
         
+        setPdf(null);
+        setPdfTotalPages(0);
+        setPageNum(null);
+
+        
+        resizeCanvas();
+
         const ctx = whiteboardRef.current.getContext("2d");
         const reader = new FileReader();
         reader.readAsDataURL(file);
@@ -74,8 +96,17 @@ const Whiteboard = memo(({isSharing}) => {
             if(e.target.readyState === FileReader.DONE){
                 const img = new Image();
                 img.src = e.target.result;
+
+                const imgWidth = whiteboardRef.current.width;
+                const imgHeight = whiteboardRef.current.height;
+                
                 img.onload=()=>{
-                    ctx.drawImage(img,0,0,560,360);
+                    // const hRatio = imgWidth / img.width;
+                    // const vRatio = imgWidth / img.height;
+                    // const ratio  = Math.min ( hRatio, vRatio );
+
+                    // ctx.drawImage(img, 0,0, img.width, img.height, 0,0,img.width*ratio, img.height*ratio);
+                    ctx.drawImage(img,0,0,imgWidth,imgHeight);
                 }
             }
         }
@@ -125,7 +156,7 @@ const Whiteboard = memo(({isSharing}) => {
     },[pickedColor]);
 
     useEffect(()=>{
-        if(pdf){
+        if(pdf && pageNum){
             pdf.getPage(pageNum).then((page)=> {
                 let viewport = page.getViewport({scale:1});
                 
@@ -164,87 +195,105 @@ const Whiteboard = memo(({isSharing}) => {
             }
         }
     },[isSharing]);
+    useEffect(()=>{
+        // whiteboardRef.current.width=canvasContainerRef.current.width;
+        // whiteboardRef.current.height=canvasContainerRef.current.height;
+        resizeCanvas();
+        clearCanvas(whiteboardRef.current);
+        
+        return ()=>{
+            window.clearInterval(intervalID.current);
+        }
+    },[])
     
     return (
-    <>
-    <canvas width="560" height="360" className="vid" ref={whiteboardRef} ></canvas>
-    <div className="buttonsContainer">
-        <Tooltip title="Add Image" arrow>
-            <Button component="label">
-                <ImageIcon />
-                <input type="file" onChange={handleImageInputChange} ref={fileInputRef} hidden/>
-            </Button>
-        </Tooltip>                           
+    <div className="whiteboardContainer" ref={rootRef}>
+        <div 
+            // style={{display:"none"}} 
+            className="canvasContainer" 
+            ref={canvasContainerRef}
+        >
 
+            <canvas 
+                ref={whiteboardRef} 
+                // width="800" 
+                // height="700"  
+            ></canvas>
+        </div>
         
-        <Tooltip title="Add PDF" arrow>
-            <Button component="label">
-                <PDFIcon />
-                <input type="file" onChange={handlePdfChange} ref={PdfInputRef} hidden/>
-            </Button>
-        </Tooltip>
+        <div className="buttonsContainer">
+            <Tooltip title="Add Image" arrow>
+                <IconButton className="button" component="label">
+                    <ImageIcon />
+                    <input type="file" onChange={handleImageInputChange} ref={fileInputRef} hidden/>
+                </IconButton>
+            </Tooltip>                           
 
-        {
-            pdf &&
-            <>
-                <Tooltip title="Previous Page" arrow>
-                    <Button onClick={prevPage} disabled={pageNum === 1} >
+            
+            <Tooltip title="Add PDF" arrow>
+                <IconButton className="button" component="label">
+                    <PDFIcon />
+                    <input type="file" onChange={handlePdfChange} ref={PdfInputRef} hidden/>
+                </IconButton>
+            </Tooltip>
+
+            {
+                pdf &&
+                (<>
+                    <IconButton className="button" onClick={prevPage} disabled={pageNum === 1} >
                         <NextArrow style={{transform:"rotate(180deg)"}} />
-                    </Button>
-                </Tooltip>
+                    </IconButton>
 
-                <Tooltip title="Next Page" arrow>
-                    <Button onClick={nextPage} disabled={pageNum === pdfTotalPages}>
+                    <IconButton className="button" onClick={nextPage} disabled={pageNum === pdfTotalPages}>
                         <NextArrow />
-                    </Button>
-                </Tooltip>
-            </>
-        }
-        <Tooltip title="Line" arrow>
-            <Button className={selectedCanvasButton===0 ? "selected" : ""} onClick={()=>{setSelectedCanvasButton(0);removeEvents(whiteboardRef.current);drawLine(whiteboardRef.current); }}>
-                <LineIcon />
-            </Button>     
-        </Tooltip>
+                    </IconButton>
+                </>)
+            }
+            <Tooltip title="Line" arrow>
+                <IconButton className={[selectedCanvasButton===0 ? "selected" : "","button"].join(" ")} onClick={()=>{setSelectedCanvasButton(0);removeEvents(whiteboardRef.current);drawLine(whiteboardRef.current); }}>
+                    <LineIcon />
+                </IconButton>     
+            </Tooltip>
 
-                            
-        <Tooltip title="Square" arrow>
-            <Button className={selectedCanvasButton===1 ? "selected" : ""} onClick={()=>{setSelectedCanvasButton(1);removeEvents(whiteboardRef.current);drawRect(whiteboardRef.current); }}>
-                <SquareIcon />
-            </Button>                            
-        </Tooltip>
-        
-        <Tooltip title="Circle" arrow>
-            <Button className={selectedCanvasButton===2 ? "selected" : ""} onClick={()=>{setSelectedCanvasButton(2);removeEvents(whiteboardRef.current);drawCircle(whiteboardRef.current); }}>
-                <CircleIcon />
-            </Button>
-        </Tooltip>
+                                
+            <Tooltip title="Square" arrow>
+                <IconButton className={[selectedCanvasButton===1 ? "selected" : "","button"].join(" ")} onClick={()=>{setSelectedCanvasButton(1);removeEvents(whiteboardRef.current);drawRect(whiteboardRef.current); }}>
+                    <SquareIcon />
+                </IconButton>                            
+            </Tooltip>
+            
+            <Tooltip title="Circle" arrow>
+                <IconButton className={[selectedCanvasButton===2 ? "selected" : "","button"].join(" ")} onClick={()=>{setSelectedCanvasButton(2);removeEvents(whiteboardRef.current);drawCircle(whiteboardRef.current); }}>
+                    <CircleIcon />
+                </IconButton>
+            </Tooltip>
 
-        <Tooltip title="Text" arrow>
-            <Button className={selectedCanvasButton===3 ? "selected" : ""} onClick={()=>{setSelectedCanvasButton(3);removeEvents(whiteboardRef.current);drawText(whiteboardRef.current); }}>
-                <TextIcon />
+            <Tooltip title="Text" arrow>
+                <IconButton className={[selectedCanvasButton===3 ? "selected" : "","button"].join(" ")} onClick={()=>{setSelectedCanvasButton(3);removeEvents(whiteboardRef.current);drawText(whiteboardRef.current); }}>
+                    <TextIcon />
+                </IconButton>
+            </Tooltip>
+            
+            <Tooltip title="Draw" arrow>
+                <IconButton className={[selectedCanvasButton===4 ? "selected" : "","button"].join(" ")} onClick={()=>{setSelectedCanvasButton(4);removeEvents(whiteboardRef.current);freehandDraw(whiteboardRef.current); }}>
+                    <GestureIcon />
+                </IconButton>                            
+            </Tooltip>
+            <Button className="button" onClick={()=>{clearCanvas(whiteboardRef.current)}}>
+                Clear
             </Button>
-        </Tooltip>
-        
-        <Tooltip title="Draw" arrow>
-            <Button className={selectedCanvasButton===4 ? "selected" : ""} onClick={()=>{setSelectedCanvasButton(4);removeEvents(whiteboardRef.current);freehandDraw(whiteboardRef.current); }}>
-                <GestureIcon />
-            </Button>                            
-        </Tooltip>
-        <Button onClick={()=>{clearCanvas(whiteboardRef.current)}}>
-            Clear
-        </Button>
-        <ClickAwayListener onClickAway={()=>{setShowColorPicker(false)}} >
-            <div className="cp" >
-                <Button onClick={()=>{setShowColorPicker(val=>!val)}}>
-                    <ColorIcon/>
-                </Button>
-                    <div className={["colorPickerContainer",showColorPicker ? "show" : ""].join(" ")} >
+            <ClickAwayListener onClickAway={()=>{setShowColorPicker(false)}} >
+                <div className="colorPickerContainer" >
+                    <IconButton className="button" onClick={()=>{setShowColorPicker(val=>!val)}}>
+                        <ColorIcon/>
+                    </IconButton>
+                    <div className={["colorPickerBlockContainer",showColorPicker ? "show" : ""].join(" ")} >
                         <BlockPicker color={pickedColor} width={170} onChangeComplete={setPickedColor} colors={colorsArr}/>
                     </div>
-            </div>
-        </ClickAwayListener>
+                </div>
+            </ClickAwayListener>
+        </div>
     </div>
-    </>
     )
 })
 

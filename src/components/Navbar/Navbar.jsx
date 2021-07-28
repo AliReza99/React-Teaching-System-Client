@@ -87,7 +87,7 @@ const Timer = memo(()=>{
     )
 })
 
-const Navbar=({shareWhiteboardClick,exportUsersActivity,exportChatMessages,toggleChats,clearChat,isAdmin,roomName,fastplay,shareMicrophoneOnClick,micIsSharing,shareDesktopOnClick,desktopIsSharing})=>{
+const Navbar=({shareWhiteboardClick,exportUsersActivity,exportChatMessages,toggleChats,clearChat,isAdmin,roomName,fastplayClick,shareMicrophoneOnClick,micIsSharing,shareDesktopOnClick,desktopIsSharing})=>{
     const [showMore,setShowMore] = useState(false);
     
     const classes=useStyle();
@@ -121,7 +121,7 @@ const Navbar=({shareWhiteboardClick,exportUsersActivity,exportChatMessages,toggl
                 <PenIcon />
             </IconButton>
             
-            <IconButton onClick={fastplay} >
+            <IconButton onClick={fastplayClick} >
                 <FastForwardIcon />
             </IconButton>
 
@@ -156,10 +156,6 @@ const Navbar=({shareWhiteboardClick,exportUsersActivity,exportChatMessages,toggl
                 <ChatIcon  />
             </IconButton>
         </div>
-
-        {/* <Button onClick={handleWhiteboardClick}>
-            disconnect whiteboard
-        </Button> */}
 
     </Paper>
     )

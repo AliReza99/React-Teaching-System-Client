@@ -1,0 +1,66 @@
+.whiteboardContainer{
+    display: flex;
+    // flex-direction: column;
+    position: relative;
+    // width: 100%;
+    // height: 100%;
+    background-color: rgba(255,255,255,.1);
+    border: 5px solid #000;
+    border-radius: 10px;
+    padding-top: 56px;
+
+    .canvasContainer{
+        display: flex;
+        flex-direction: column;
+        // height: 100%;
+        // width: 100%;
+        background: #aaa;
+        justify-content: center;
+        // canvas{
+            // width: 100%;
+            // height: 100%;
+        // }
+    }
+    .buttonsContainer{
+        width: 100%;
+        padding: 2px 0;
+        display: flex;
+        justify-content: center;
+        position: absolute;
+        top: 0;
+        left: 0;
+        background-color: #222;
+        opacity: .8;
+        transition: opacity .2s;
+        &:hover{
+            opacity: 1;
+        }
+        .button{
+            font-size: .8em;
+            // border-radius: 10px;
+            svg{
+                // font-size: inherit;
+            }
+        }
+    }
+}
+.colorPickerContainer{
+    position: relative;
+    display: flex;
+    .colorPickerBlockContainer{
+        position: absolute;
+        left: calc(-85px + 50%);
+        // top: 60px;
+        transform: translateY(10px);
+        opacity: 0;
+        visibility: hidden;
+        transition: visibility .3s ,opacity .3s ,transform .2s;
+        top: calc(100% + 10px);
+        &.show{
+            transform: translateY(0);
+            visibility: visible;
+            opacity: 1;    
+        }
+    }
+
+}
