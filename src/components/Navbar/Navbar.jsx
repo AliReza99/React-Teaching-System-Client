@@ -88,7 +88,7 @@ const Timer = memo(()=>{
     )
 })
 
-const Navbar=({toggleStreams,shareWhiteboardClick,exportUsersActivity,exportChatMessages,toggleChats,clearChat,isAdmin,roomName,fastplayClick,shareMicrophoneOnClick,micIsSharing,shareDesktopOnClick,desktopIsSharing})=>{
+const Navbar=({leaveRoomClick,toggleStreams,shareWhiteboardClick,exportUsersActivity,exportChatMessages,toggleChats,clearChat,isAdmin,roomName,fastplayClick,shareMicrophoneOnClick,micIsSharing,shareDesktopOnClick,desktopIsSharing})=>{
     const [showMore,setShowMore] = useState(false);
     
     const classes=useStyle();
@@ -141,7 +141,7 @@ const Navbar=({toggleStreams,shareWhiteboardClick,exportUsersActivity,exportChat
                 </ClickAwayListener>
             }
 
-            <IconButton aria-label="hangup" className="redBackground"  >
+            <IconButton aria-label="hangup" className="redBackground" onClick={leaveRoomClick} >
                 <HangupIcon />
             </IconButton>
         </div>

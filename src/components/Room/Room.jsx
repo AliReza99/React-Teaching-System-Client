@@ -9,6 +9,7 @@ import {
     InputBase,
     IconButton,
     Button,
+    TextField
 } from "@material-ui/core";
 
 import {
@@ -487,22 +488,54 @@ export default function Room(props) {
     const toggleStreams=()=>{
         setShowStreams(last=>!last);
     }
+    const leaveRoomClick=()=>{
+        window.location.reload();
+    }
 
     return (
         <Paper square className="container">
             <div>
-                <form onSubmit={handleLogin} className={["loginForm",showLogin ? "show" : ""].join(" ")}>
-                    <InputBase value={usernameInput} onChange={(e)=>{handleInput(e,setUsernameInput)}} required  placeholder="username..."/><br />
-                    <InputBase value={roomInput} onChange={(e)=>{handleInput(e,setRoomInput)}} required placeholder="room..."/>
-                    <Button type="submit">Join</Button>
-                </form>
+                <div className={["login",showLogin ? "show" : ""].join(" ")}>
+                    <p>
+                        Create Or Join Room
+                    </p>
+                    <form onSubmit={handleLogin}>
+                        <TextField className="inputs" value={usernameInput} onChange={(e)=>{handleInput(e,setUsernameInput)}} required  label="Pick Username" /><br />
+                        <TextField className="inputs" value={roomInput} onChange={(e)=>{handleInput(e,setRoomInput)}} required label="Enter Room Name"/>
+                        <br />
+                        <Button type="submit">Join</Button>
+                    </form>
+                </div>
 
 
 
                 
-                <div className={["main",!showChat ? "expand" : ""].join(" ")} 
-                    // style={{gridTemplateColumns:`repeat(${Math.floor(Math.log( (selfStream ? 1 : 0)+streams.length ===1 ? 1 : (selfStream ? 1 : 0)+streams.length ) /Math.log(2))+1}, minmax(0, 1fr))`}}
-                >
+                <div className={["main",!showChat ? "expand" : ""].join(" ")} >
+
+                    <div className={`streamsContainer ${isWhiteboardSharing || isWhiteboardRecieving ? "shrink" : "expand"} len${streams.length + (selfStream ? 1 : 0)} ${streams.length + (selfStream ? 1 : 0) > 0 && showStreams ? "show" :""}`}>
+                        {   
+                            selfStream &&
+                            <div className="stream">
+                                <div className="username">You</div>
+                                <div className="vidContainer" >
+                                    <video ref={elem=>{if(elem) return elem.srcObject = selfStream}} muted autoPlay playsInline></video> 
+                                </div>
+                            </div>
+                        }
+                        {
+                            streams.map(({stream,username})=>{
+                                return(
+                                    <div className="stream" key={stream.id}>
+                                        <div className="username">{username}</div>
+                                        <div className="vidContainer" >
+                                            <video ref={elem=>{if(elem) return elem.srcObject=stream}} autoPlay playsInline></video> 
+                                        </div>
+                                    </div>
+                                )
+                            })
+                        }
+                    </div>
+                    
                     <div className={["whiteboard","send",isWhiteboardSharing ? "show" : ""].join(" ")}>
                         <Whiteboard isSharing={isWhiteboardSharing}/>
                     </div>
@@ -526,33 +559,7 @@ export default function Room(props) {
                     </div>
 
                 </div>
-                
-            </div>
-            <div className={["streamsContainer",showStreams ? "show" : ""].join(" ")} >
-                <div className="title" >
-                    Streams 
-                </div>
-                {
-                    selfStream &&
-                    (<div className="stream self">
-                        <div className="username">You</div>
-                        <div className="vidContainer" >
-                            <video className="vid" ref={elem=>{if(elem) return elem.srcObject = selfStream}} muted autoPlay playsInline></video> 
-                        </div>
-                    </div>)
-                }                
-                {
-                    streams.map(({stream,username})=>{
-                        return (
-                            <div className="stream" key={stream.id}>
-                                <div className="username">{username} </div>
-                                <div className="vidContainer" >
-                                    <video className="vid"  ref={elem=>{if(elem) return elem.srcObject=stream}} autoPlay playsInline></video>
-                                </div>
-                            </div>                    
-                        )
-                    })
-                }
+
             </div>
             <Drawer showChat={showChat} setShowChat={setShowChat}/>
                         
@@ -568,7 +575,8 @@ export default function Room(props) {
                 clearChat={clearChat} 
 
                 toggleStreams={toggleStreams}
-                
+
+                leaveRoomClick={leaveRoomClick}
                 fastplayClick={fastplayClick} 
                 shareDesktopOnClick={shareDesktopOnClick} 
                 shareMicrophoneOnClick={shareMicrophoneOnClick} 

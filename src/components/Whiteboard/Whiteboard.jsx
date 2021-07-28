@@ -62,17 +62,9 @@ const Whiteboard = memo(({isSharing}) => {
     const socket = useRecoilValue(socketState);
 
 
-    const resizeCanvas=(width=800,height=700)=>{
+    const resizeCanvas=(width=600,height=700)=>{
         whiteboardRef.current.width= width;
         whiteboardRef.current.height= height;
-
-        const parentWidth= rootRef.current.width;
-        const parentHeight= rootRef.current.height;
-
-        const whiteboardWidth = whiteboardRef.current.width;
-        const whiteboardHeight = whiteboardRef.current.height;
-        console.log(`parent size: ${parentWidth}x${parentHeight}`);
-        console.log(`whiteboard size: ${whiteboardWidth}x${whiteboardHeight}`);
     }
 
     const handleImageInputChange=()=>{
