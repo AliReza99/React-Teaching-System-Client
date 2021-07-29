@@ -102,6 +102,7 @@ const Drawer= memo(({showChat,setShowChat})=> {
     const self = useRecoilValue(selfState);
 
     const messageInputRef = useRef(null);
+    const messageContainerRef= useRef(null);
 
     const classes = useStyle2();
     
@@ -151,7 +152,7 @@ const Drawer= memo(({showChat,setShowChat})=> {
             setChats(prev=>{
                 return [...prev,msg]
             });
-            // messageContainerRef.current.scrollTop=10000;//scroll to button after new message
+            messageContainerRef.current.scrollTop +=200;//scroll to button after new message
             
         });
     
@@ -211,7 +212,8 @@ const Drawer= memo(({showChat,setShowChat})=> {
                     }                       
                 </List>
             </div>    
-            <div className="messages" >
+            <Divider />
+            <div className="messages" ref={messageContainerRef} >
                 <List 
                     subheader={<ListSubheader className="listHeader" component="div">Messages {chats.length>0 ? `(${chats.length})` : ""}</ListSubheader>}
                     disablePadding
@@ -283,7 +285,7 @@ const Drawer= memo(({showChat,setShowChat})=> {
                 (
                     <div className="btnsContainer">
                         <div className="msgMode">
-                            <Button onClick={()=>{setMsgRole('question')}} >Question {msgRole === "question" ? <TickIcon /> : ""} </Button>
+                            <Button onClick={()=>{setMsgRole('question')}} >Question  {msgRole === "question" ? <TickIcon /> : ""} </Button>
                             <Button onClick={()=>{setMsgRole('message')}} >Message {msgRole === "message" ? <TickIcon /> : "" } </Button>
                             {
                                 msgRole === 'question' &&

@@ -62,7 +62,7 @@ const Whiteboard = memo(({isSharing}) => {
     const socket = useRecoilValue(socketState);
 
 
-    const resizeCanvas=(width=600,height=700)=>{
+    const resizeCanvas=(width=600,height=750)=>{
         whiteboardRef.current.width= width;
         whiteboardRef.current.height= height;
     }

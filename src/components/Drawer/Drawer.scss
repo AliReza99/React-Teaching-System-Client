@@ -14,3 +14,19 @@
         // cursor: pointer;
     }
 }
+.msgMode {
+    display: flex;
+    align-items: center;
+    button{
+        border-radius: 8px;
+        
+    }
+}
+
+.question {
+    color: #64B5F6;
+}
+
+.answer {
+    color: #26C6DA;
+}

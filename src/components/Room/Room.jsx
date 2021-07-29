@@ -6,7 +6,7 @@ import Navbar from "../Navbar/Navbar";
 // import { useSnackbar } from 'notistack';
 import {
     Paper,
-    InputBase,
+    // InputBase,
     IconButton,
     Button,
     TextField
@@ -298,6 +298,16 @@ export default function Room(props) {
         socket.emit("export-activities");
     }
     
+    function downloadObjectAsJson(exportObj, exportName){
+        var dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj));
+        var downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href",     dataStr);
+        downloadAnchorNode.setAttribute("download", exportName + ".json");
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+      }
+    
     useEffect(()=>{
         socket.on('connect',()=>{
             console.log('socket connection established');
@@ -305,9 +315,20 @@ export default function Room(props) {
 
         socket.on("export-chat",(chats)=>{
             console.log('export all chats',chats);
+            downloadObjectAsJson(chats,'chats log');
         })        
         socket.on("export-activities",(activities)=>{
-            console.log('export all users Activity',activities);
+            const normalizedActivities= activities.map((activity)=>{
+                return {    
+                    username:activity.username,
+                    presenceTime:`${Math.floor(activity.presenceTime / 1000)}s`,
+                    delay:`${Math.floor(activity.delay / 1000)}s`,
+                }
+            });
+            
+            console.log('export all users Activity',normalizedActivities);
+            downloadObjectAsJson(normalizedActivities,'users activity');
+            
         })
         
         
@@ -350,11 +371,11 @@ export default function Room(props) {
             }
 
             if(isPresenting){
-                console.log('currently presenting');
+                // console.log('currently presenting');
                 setWbSenderName(data.sender); // does is need to be there ?
             }
             else{
-                console.log('currently just watchin');
+                // console.log('currently just watchin');
                 whiteboardImgRef.current.src=data.base64ImageData;
                 setWbSenderName(data.sender); // will not rerender if sender doesn't changed
                 setIsWhiteboardRecieving(true);
@@ -491,6 +512,7 @@ export default function Room(props) {
     const leaveRoomClick=()=>{
         window.location.reload();
     }
+    
 
     return (
         <Paper square className="container">
