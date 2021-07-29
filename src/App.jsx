@@ -3,7 +3,6 @@ import {BrowserRouter,Route} from "react-router-dom";
 import { createTheme, MuiThemeProvider } from "@material-ui/core";
 import Room from "./components/Room/Room";
 import {RecoilRoot} from "recoil";
-import { SnackbarProvider } from 'notistack';
 import "./App.scss";
 
 function App() {
@@ -43,13 +42,11 @@ function App() {
     }); 
     return (
     <MuiThemeProvider theme={theme}>
-        <SnackbarProvider maxSnack={3}>
-            <RecoilRoot>
-                <BrowserRouter>
-                    <Route exact path="/" render={()=><Room setDarkTheme={setDarkTheme} darkTheme={darkTheme}/>} />
-                </BrowserRouter>
-            </RecoilRoot>
-        </SnackbarProvider>
+        <RecoilRoot>
+            <BrowserRouter>
+                <Route exact path="/" render={()=><Room setDarkTheme={setDarkTheme} darkTheme={darkTheme}/>} />
+            </BrowserRouter>
+        </RecoilRoot>
     </MuiThemeProvider>
     )
 }

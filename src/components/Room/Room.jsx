@@ -3,10 +3,8 @@ import "./Room.scss";
 import Drawer from "../Drawer/Drawer";
 import Whiteboard from "../Whiteboard/Whiteboard";
 import Navbar from "../Navbar/Navbar";
-// import { useSnackbar } from 'notistack';
 import {
     Paper,
-    // InputBase,
     IconButton,
     Button,
     TextField
