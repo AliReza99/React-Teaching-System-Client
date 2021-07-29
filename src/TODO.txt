@@ -1,6 +1,0 @@
-add join request when joining room 
-add ability to rejoining same room 
-
-set resolution for share streams when deploy
-
-
