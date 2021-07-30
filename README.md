@@ -1,9 +1,9 @@
-# React-Teaching-System-Client
+# React Teaching-System Client
 
 Project screenshot:
 ![Screenshot](https://raw.githubusercontent.com/AliReza99/webproj-client/main/screenshots/sc1.png)
 
-Back-End source code [here](https://github.com/AliReza99/webproj-client) (NodeJS/Express/Socket.io)
+Back-End source code [here](https://github.com/AliReza99/React-Teaching-System) (NodeJS/Express/Socket.io)
 
 ## Available Scripts
 
