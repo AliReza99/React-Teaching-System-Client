@@ -1,4 +1,10 @@
-# webproj-client
+# React-Teaching-System-Client
+
+Project screenshot:
+![Screenshot](https://raw.githubusercontent.com/AliReza99/webproj-client/main/screenshots/sc1.png)
+
+Back-End source code [here](https://github.com/AliReza99/webproj-client) (NodeJS/Express/Socket.io)
+
 ## Available Scripts
 
 In the project directory, you can run:
@@ -11,9 +17,6 @@ To install basic project dependencies
 
 Runs the app in the development mode.\
 Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
-
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
 
 ### `npm run build`
 
