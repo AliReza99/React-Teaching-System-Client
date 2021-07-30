@@ -1,7 +1,10 @@
 # React Teaching-System Client
 
+:warning: **It's just client-side source code. It won't work without [server](https://github.com/AliReza99/React-Teaching-System)**
+
 Project screenshot:
 ![Screenshot](https://raw.githubusercontent.com/AliReza99/webproj-client/main/screenshots/sc1.png)
+
 
 Back-End source code [here](https://github.com/AliReza99/React-Teaching-System) (NodeJS/Express/Socket.io)
 
